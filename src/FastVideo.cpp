@@ -1,18 +1,41 @@
 // Example low level rendering Unity plugin
 #include "FastVideo.h"
 #include <sstream>
+#include <d3d11.h>
 
 
 //	globals in a namespace please
-namespace TVideoStreamer
+namespace TFastVideo
 {
-	UnityDebugLogFunc UnityDebugFunc = NULL;
+	UnityDebugLogFunc	UnityDebugFunc = NULL;
+	TDecodeThread*		DecodeThread = NULL;
+	TFramePool			FramePool;
+	float				Time;
+	int					MaxFrameBuffer = DEFAULT_MAX_FRAME_BUFFER;
 };
+
+static GfxDeviceRenderer::Type g_DeviceType = GfxDeviceRenderer::Invalid;
+static ID3D11Device* g_D3D11Device;
+static ID3D11Buffer* g_D3D11VB; // vertex buffer
+static ID3D11Buffer* g_D3D11CB; // constant buffer
+static ID3D11VertexShader* g_D3D11VertexShader;
+static ID3D11PixelShader* g_D3D11PixelShader;
+static ID3D11InputLayout* g_D3D11InputLayout;
+static ID3D11RasterizerState* g_D3D11RasterState;
+static ID3D11BlendState* g_D3D11BlendState;
+static ID3D11DepthStencilState* g_D3D11DepthState;
+static ID3D11Texture2D* g_TexturePointer;
+ID3D11Texture2D* g_DynamicTexture = NULL;
+
+
+
+
+
 
 
 extern "C" void EXPORT_API SetDebugLogFunction(UnityDebugLogFunc pFunc)
 {
-	TVideoStreamer::UnityDebugFunc = pFunc;
+	TFastVideo::UnityDebugFunc = pFunc;
 }
 
 // Prints a string
@@ -26,9 +49,9 @@ void DebugLog (const char* str)
 	//printf ("%s\n", str);
 
 	//	print to unity if we have a function set
-	if ( TVideoStreamer::UnityDebugFunc )
+	if ( TFastVideo::UnityDebugFunc )
 	{
-		(*TVideoStreamer::UnityDebugFunc)( str );
+		(*TFastVideo::UnityDebugFunc)( str );
 	}
 }
 
@@ -48,7 +71,7 @@ std::string ofToString(int Integer)
 
 
 TFramePool::TFramePool(int MaxPoolSize) :
-	mPoolMaxSize	( min(1,MaxPoolSize) )
+	mPoolMaxSize	( max(1,MaxPoolSize) )
 {
 }
 
@@ -81,6 +104,11 @@ TFramePixels* TFramePool::Alloc()
 				mPool.push_back( FreeBlock );
 				mPoolUsed.push_back( true );
 			}
+		}
+		else
+		{
+			std::string Debug = std::string() + "Frame pool is full (" + ofToString(mPool.size()) + "/; " + ofToString(mPool.size()) + ")";
+			DebugLog( Debug.c_str() );
 		}
 	}
 	
@@ -222,77 +250,19 @@ unsigned int __stdcall TThread::threadFunc(void *args)
 
 
 
-// --------------------------------------------------------------------------
-// Include headers for the graphics APIs we support
 
-#if SUPPORT_D3D11
-	#include <d3d11.h>
-#endif
+extern "C" void EXPORT_API SetTimeFromUnity (float t) 
+{
+	TFastVideo::Time = t; 
+}
 
-static ID3D11Device* g_D3D11Device;
-static ID3D11Buffer* g_D3D11VB; // vertex buffer
-static ID3D11Buffer* g_D3D11CB; // constant buffer
-static ID3D11VertexShader* g_D3D11VertexShader;
-static ID3D11PixelShader* g_D3D11PixelShader;
-static ID3D11InputLayout* g_D3D11InputLayout;
-static ID3D11RasterizerState* g_D3D11RasterState;
-static ID3D11BlendState* g_D3D11BlendState;
-static ID3D11DepthStencilState* g_D3D11DepthState;
-static float g_Time;
-static ID3D11Texture2D* g_TexturePointer;
-ID3D11Texture2D* g_DynamicTexture = NULL;
-TDecodeThread* gDecodeThread = NULL;
-TFramePool gFramePool;
+extern "C" void EXPORT_API SetMaxFrameBuffer(int MaxFrameBuffer)
+{
+}
 
-typedef HRESULT (WINAPI *D3DCompileFunc)(
-	const void* pSrcData,
-	unsigned long SrcDataSize,
-	const char* pFileName,
-	const D3D10_SHADER_MACRO* pDefines,
-	ID3D10Include* pInclude,
-	const char* pEntrypoint,
-	const char* pTarget,
-	unsigned int Flags1,
-	unsigned int Flags2,
-	ID3D10Blob** ppCode,
-	ID3D10Blob** ppErrorMsgs);
-
-static const char* kD3D11ShaderText =
-"cbuffer MyCB : register(b0) {\n"
-"	float4x4 worldMatrix;\n"
-"}\n"
-"void VS (float3 pos : POSITION, float4 color : COLOR, out float4 ocolor : COLOR, out float4 opos : SV_Position) {\n"
-"	opos = mul (worldMatrix, float4(pos,1));\n"
-"	ocolor = color;\n"
-"}\n"
-"float4 PS (float4 color : COLOR) : SV_TARGET {\n"
-"	return color;\n"
-"}\n";
-
-
-
-// --------------------------------------------------------------------------
-// Helper utilities
-
-
-
-// COM-like Release macro
-#ifndef SAFE_RELEASE
-#define SAFE_RELEASE(a) if (a) { a->Release(); a = NULL; }
-#endif
-
-
-
-// --------------------------------------------------------------------------
-// SetTimeFromUnity, an example function we export which is called by one of the scripts.
-
-
-extern "C" void EXPORT_API SetTimeFromUnity (float t) { g_Time = t; }
-
-
-
-// --------------------------------------------------------------------------
-// SetTextureFromUnity, an example function we export which is called by one of the scripts.
+extern "C" void EXPORT_API SetMaxFramePool(int MaxFramePool)
+{
+}
 
 
 extern "C" void EXPORT_API SetTextureFromUnity(void* texturePtr,const wchar_t* Filename,const int FilenameLength)
@@ -304,15 +274,18 @@ extern "C" void EXPORT_API SetTextureFromUnity(void* texturePtr,const wchar_t* F
 	if ( !g_TexturePointer )
 		return;
 
+	
 	D3D11_TEXTURE2D_DESC SrcDesc;
 	g_TexturePointer->GetDesc (&SrcDesc);
-
+	
 	TDecodeParams Params;
 	Params.mWidth = SrcDesc.Width;
 	Params.mHeight = SrcDesc.Height;
-
 	for ( int i=0;	i<FilenameLength;	i++ )
 		Params.mFilename += Filename[i];
+
+
+
 
 	if ( !g_DynamicTexture )
 	{
@@ -329,7 +302,7 @@ extern "C" void EXPORT_API SetTextureFromUnity(void* texturePtr,const wchar_t* F
 		Desc.SampleDesc.Count = 1;
 		Desc.SampleDesc.Quality = 0;
 		Desc.Usage = D3D11_USAGE_DYNAMIC;
-		Desc.Format = SrcDesc.Format;
+		Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		Desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 		Desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 		//Desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -342,12 +315,12 @@ extern "C" void EXPORT_API SetTextureFromUnity(void* texturePtr,const wchar_t* F
 	}
 
 	//	create decoder thread
-	if ( !gDecodeThread )
+	if ( !TFastVideo::DecodeThread )
 	{
-		gDecodeThread = new TDecodeThread( Params );
-		gDecodeThread->start();
+		TFastVideo::DecodeThread = new TDecodeThread( Params );
+		TFastVideo::DecodeThread->start();
 
-		gFramePool.mParams = Params;
+		TFastVideo::FramePool.mParams = Params;
 	}
 }
 
@@ -356,7 +329,6 @@ extern "C" void EXPORT_API SetTextureFromUnity(void* texturePtr,const wchar_t* F
 // --------------------------------------------------------------------------
 // UnitySetGraphicsDevice
 
-static int g_DeviceType = -1;
 
 
 // Actual setup/teardown functions defined below
@@ -368,179 +340,43 @@ static void SetGraphicsDeviceD3D11 (ID3D11Device* device, GfxDeviceEventType eve
 extern "C" void EXPORT_API UnitySetGraphicsDevice (void* device, int deviceType, int eventType)
 {
 	// Set device type to -1, i.e. "not recognized by our plugin"
-	g_DeviceType = -1;
+	g_DeviceType = GfxDeviceRenderer::Invalid;
 	
-	#if SUPPORT_D3D11
 	// D3D11 device, remember device pointer and device type.
 	// The pointer we get is ID3D11Device.
-	if (deviceType == kGfxRendererD3D11)
+	if (deviceType == GfxDeviceRenderer::kGfxRendererD3D11)
 	{
 		DebugLog ("Set D3D11 graphics device\n");
-		g_DeviceType = deviceType;
+		g_DeviceType = static_cast<GfxDeviceRenderer::Type>( deviceType );
 		SetGraphicsDeviceD3D11 ((ID3D11Device*)device, (GfxDeviceEventType)eventType);
 	}
-	#endif
-
 }
 
 
-// -------------------------------------------------------------------
-//  Direct3D 11 setup/teardown code
-
-
-#if SUPPORT_D3D11
-
-
-static void CreateD3D11Resources()
+void CreateD3D11Resources()
 {
-
-	D3D11_BUFFER_DESC desc;
-	memset (&desc, 0, sizeof(desc));
-
-	// vertex buffer
-	desc.Usage = D3D11_USAGE_DEFAULT;
-	desc.ByteWidth = 1024;
-	desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	g_D3D11Device->CreateBuffer (&desc, NULL, &g_D3D11VB);
-
-	// constant buffer
-	desc.Usage = D3D11_USAGE_DEFAULT;
-	desc.ByteWidth = 64; // hold 1 matrix
-	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	desc.CPUAccessFlags = 0;
-	g_D3D11Device->CreateBuffer (&desc, NULL, &g_D3D11CB);
-
-
-
-	// shaders
-	HMODULE compiler = LoadLibraryA("D3DCompiler_43.dll");
-
-	if (compiler == NULL)
-	{
-		// Try compiler from Windows 8 SDK
-		compiler = LoadLibraryA("D3DCompiler_46.dll");
-	}
-	if (compiler)
-	{
-		ID3D10Blob* vsBlob = NULL;
-		ID3D10Blob* psBlob = NULL;
-
-		D3DCompileFunc compileFunc = (D3DCompileFunc)GetProcAddress (compiler, "D3DCompile");
-		if (compileFunc)
-		{
-			HRESULT hr;
-			hr = compileFunc(kD3D11ShaderText, strlen(kD3D11ShaderText), NULL, NULL, NULL, "VS", "vs_4_0", 0, 0, &vsBlob, NULL);
-			if (SUCCEEDED(hr))
-			{
-				g_D3D11Device->CreateVertexShader (vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), NULL, &g_D3D11VertexShader);
-			}
-
-			hr = compileFunc(kD3D11ShaderText, strlen(kD3D11ShaderText), NULL, NULL, NULL, "PS", "ps_4_0", 0, 0, &psBlob, NULL);
-			if (SUCCEEDED(hr))
-			{
-				g_D3D11Device->CreatePixelShader (psBlob->GetBufferPointer(), psBlob->GetBufferSize(), NULL, &g_D3D11PixelShader);
-			}
-		}
-
-		// input layout
-		if (g_D3D11VertexShader && vsBlob)
-		{
-			D3D11_INPUT_ELEMENT_DESC layout[] = {
-				{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-				{ "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-			};
-
-			g_D3D11Device->CreateInputLayout (layout, 2, vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &g_D3D11InputLayout);
-		}
-
-		SAFE_RELEASE(vsBlob);
-		SAFE_RELEASE(psBlob);
-
-		FreeLibrary (compiler);
-	}
-	else
-	{
-		DebugLog ("D3D11: HLSL shader compiler not found, will not render anything\n");
-	}
-
-	// render states
-	D3D11_RASTERIZER_DESC rsdesc;
-	memset (&rsdesc, 0, sizeof(rsdesc));
-	rsdesc.FillMode = D3D11_FILL_SOLID;
-	rsdesc.CullMode = D3D11_CULL_NONE;
-	rsdesc.DepthClipEnable = TRUE;
-	g_D3D11Device->CreateRasterizerState (&rsdesc, &g_D3D11RasterState);
-
-	D3D11_DEPTH_STENCIL_DESC dsdesc;
-	memset (&dsdesc, 0, sizeof(dsdesc));
-	dsdesc.DepthEnable = TRUE;
-	dsdesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	dsdesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
-	g_D3D11Device->CreateDepthStencilState (&dsdesc, &g_D3D11DepthState);
-
-	D3D11_BLEND_DESC bdesc;
-	memset (&bdesc, 0, sizeof(bdesc));
-	bdesc.RenderTarget[0].BlendEnable = FALSE;
-	bdesc.RenderTarget[0].RenderTargetWriteMask = 0xF;
-	g_D3D11Device->CreateBlendState (&bdesc, &g_D3D11BlendState);
 }
 
-static void ReleaseD3D11Resources()
+void ReleaseD3D11Resources()
 {
-	SAFE_RELEASE(g_D3D11VB);
-	SAFE_RELEASE(g_D3D11CB);
-	SAFE_RELEASE(g_D3D11VertexShader);
-	SAFE_RELEASE(g_D3D11PixelShader);
-	SAFE_RELEASE(g_D3D11InputLayout);
-	SAFE_RELEASE(g_D3D11RasterState);
-	SAFE_RELEASE(g_D3D11BlendState);
-	SAFE_RELEASE(g_D3D11DepthState);
 }
 
-static void SetGraphicsDeviceD3D11 (ID3D11Device* device, GfxDeviceEventType eventType)
+void SetGraphicsDeviceD3D11 (ID3D11Device* device, GfxDeviceEventType eventType)
 {
 	g_D3D11Device = device;
 
 	if (eventType == kGfxDeviceEventInitialize)
-		CreateD3D11Resources();
-	if (eventType == kGfxDeviceEventShutdown)
-		ReleaseD3D11Resources();
-}
-
-#endif // #if SUPPORT_D3D11
-
-
-
-// --------------------------------------------------------------------------
-// SetDefaultGraphicsState
-//
-// Helper function to setup some "sane" graphics state. Rendering state
-// upon call into our plugin can be almost completely arbitrary depending
-// on what was rendered in Unity before.
-// Before calling into the plugin, Unity will set shaders to null,
-// and will unbind most of "current" objects (e.g. VBOs in OpenGL case).
-//
-// Here, we set culling off, lighting off, alpha blend & test off, Z
-// comparison to less equal, and Z writes off.
-
-static void SetDefaultGraphicsState ()
-{
-
-	#if SUPPORT_D3D11
-	// D3D11 case
-	if (g_DeviceType == kGfxRendererD3D11)
 	{
-		ID3D11DeviceContext* ctx = NULL;
-		g_D3D11Device->GetImmediateContext (&ctx);
-		ctx->OMSetDepthStencilState (g_D3D11DepthState, 0);
-		ctx->RSSetState (g_D3D11RasterState);
-		ctx->OMSetBlendState (g_D3D11BlendState, NULL, 0xFFFFFFFF);
-		ctx->Release();
+		CreateD3D11Resources();
 	}
-	#endif
 
-
+	if (eventType == kGfxDeviceEventShutdown)
+	{
+		ReleaseD3D11Resources();
+	}
 }
+
+
 
 
 TFramePixels::TFramePixels(int Width,int Height) :
@@ -587,7 +423,7 @@ const TFramePixels* GeTFramePixels(const D3D11_TEXTURE2D_DESC& Desc)
 	Colours.push_back( TColour(255,0,0,255) );
 	Colours.push_back( TColour(0,255,0,255) );
 	Colours.push_back( TColour(0,0,255,255) );
-	//int Index = static_cast<int>(g_Time * 1.f) % Colours.size();
+	//int Index = static_cast<int>(TFastVideo::Time * 1.f) % Colours.size();
 	static int Index = 0;
 	Index ++;
 	auto& Colour = Colours[Index% Colours.size()];
@@ -607,7 +443,7 @@ const TFramePixels* GeTFramePixels(const D3D11_TEXTURE2D_DESC& Desc)
 	//	no match, create one
 	if ( !pBlock )
 	{
-		auto* NewBlock = gFramePool.Alloc();
+		auto* NewBlock = TFastVideo::FramePool.Alloc();
 		NewBlock->SetColour( Colour );
 		gBlocks.push_back( NewBlock );
 		pBlock = NewBlock;
@@ -619,57 +455,57 @@ const TFramePixels* GeTFramePixels(const D3D11_TEXTURE2D_DESC& Desc)
 
 
 
-// --------------------------------------------------------------------------
-// UnityRenderEvent
-// This will be called for GL.IssuePluginEvent script calls; eventID will
-// be the integer passed to IssuePluginEvent. In this example, we just ignore
-// that value.
-
-static void SetDefaultGraphicsState ();
-
 
 extern "C" void EXPORT_API UnityRenderEvent (int eventID)
 {
-	// Unknown graphics device type? Do nothing.
-	if (g_DeviceType == -1)
+	//	unhandled graphics device type? Do nothing.
+	if (g_DeviceType != GfxDeviceRenderer::kGfxRendererD3D11 )
 		return;
 	
-	if (g_DeviceType == kGfxRendererD3D11 )
+	//	push latest frame to texture
+	//	check we're running
+	if ( !g_TexturePointer || !TFastVideo::DecodeThread )
+		return;
+
+	//	peek to see if we have some video
+	if ( !TFastVideo::DecodeThread->HasVideoToPop() )
+		return;
+
+	//	get context
+	ID3D11DeviceContext* ctx = NULL;
+	g_D3D11Device->GetImmediateContext(&ctx);
+	if ( !ctx )
+		return;
+
+	ID3D11Texture2D* d3dtex = g_TexturePointer;
+	D3D11_TEXTURE2D_DESC desc;
+	d3dtex->GetDesc (&desc);
+
+	//	pop latest frame (this takes ownership)
+	TFramePixels* pFrame = TFastVideo::DecodeThread->PopFrame();
+	if ( pFrame )
 	{
-		ID3D11DeviceContext* ctx = NULL;
-		g_D3D11Device->GetImmediateContext (&ctx);
-
-		// update native texture from code
-		if (g_TexturePointer)
+		//	update our texture
+		D3D11_MAPPED_SUBRESOURCE resource;
+		int SubResource = 0;
+		int flags = 0;
+		HRESULT hr = ctx->Map( g_DynamicTexture, 0, D3D11_MAP_WRITE_DISCARD, flags, &resource);
+		if ( hr == S_OK )
 		{
-			ID3D11Texture2D* d3dtex = g_TexturePointer;
-			D3D11_TEXTURE2D_DESC desc;
-			d3dtex->GetDesc (&desc);
-			TFramePixels* pFrame = gDecodeThread ? gDecodeThread->PopFrame() : NULL;
-			if ( pFrame )
-			{
-				//	update texture
-				D3D11_MAPPED_SUBRESOURCE resource;
-				int SubResource = 0;
-				int flags = 0;
-				HRESULT hr = ctx->Map( g_DynamicTexture, 0, D3D11_MAP_WRITE_DISCARD, flags, &resource);
-				if ( hr == S_OK )
-				{
-					auto* TextureBytes = (unsigned char*)resource.pData;
-					memcpy( TextureBytes, pFrame->GetData(), pFrame->GetDataSize() );
-					ctx->Unmap( g_DynamicTexture, SubResource);
+			auto* TextureBytes = (unsigned char*)resource.pData;
+			memcpy( TextureBytes, pFrame->GetData(), pFrame->GetDataSize() );
+			ctx->Unmap( g_DynamicTexture, SubResource);
 
-					//	copy to real texture
-					ctx->CopyResource( d3dtex, g_DynamicTexture );
-				}
-				
-				gFramePool.Free( pFrame );
-			}
+			//	copy to real texture (gpu->gpu)
+			ctx->CopyResource( d3dtex, g_DynamicTexture );
 		}
-
-		ctx->Release();
+	
+		//	free frame
+		TFastVideo::FramePool.Free( pFrame );
 	}
 
+	//	close context
+	ctx->Release();
 }
 
 
@@ -679,7 +515,6 @@ TDecodeThread::TDecodeThread(const TDecodeParams& Params) :
 	mFrameCount	( 0 ),
 	mParams		( Params )
 {
-	mParams.mMaxFrameBuffer = max( 1, mParams.mMaxFrameBuffer );
 	mDecoder.Init( Params.mFilename.c_str() );
 }
 
@@ -687,6 +522,18 @@ TDecodeThread::~TDecodeThread()
 {
 
 }
+
+bool TDecodeThread::HasVideoToPop()
+{
+	int BufferCount = 0;
+
+	mFrameMutex.Lock();
+	BufferCount = mFrameBuffers.size();
+	mFrameMutex.Unlock();
+
+	return (BufferCount>0);
+}
+
 
 TFramePixels* TDecodeThread::PopFrame()
 {
@@ -713,7 +560,7 @@ void TDecodeThread::run()
 		//	if buffer is filled, stop (don't buffer too many frames)
 		bool DoDecode = false;
 		mFrameMutex.Lock();
-		DoDecode = ((int)mFrameBuffers.size() < mParams.mMaxFrameBuffer);
+		DoDecode = ((int)mFrameBuffers.size() < TFastVideo::MaxFrameBuffer);
 		mFrameMutex.Unlock();
 
 		if ( !DoDecode )
@@ -748,7 +595,7 @@ bool TDecodeThread::DecodeColourFrame()
 	TColour Colour( Colours[ mFrameCount % Colours.size() ] );
 
 	//	make next frame
-	TFramePixels* pFrame = gFramePool.Alloc();
+	TFramePixels* pFrame = TFastVideo::FramePool.Alloc();
 	if ( !pFrame )
 		return false;
 	pFrame->SetColour( Colour );
@@ -761,13 +608,13 @@ bool TDecodeThread::DecodeColourFrame()
 bool TDecodeThread::DecodeNextFrame()
 {
 	//	make next frame
-	TFramePixels* Frame = gFramePool.Alloc();
+	TFramePixels* Frame = TFastVideo::FramePool.Alloc();
 	if ( !Frame )
 		return false;
 	
 	if ( !mDecoder.DecodeNextFrame( Frame ) )
 	{
-		gFramePool.Free( Frame );
+		TFastVideo::FramePool.Free( Frame );
 		return false;
 	}
 

@@ -96,6 +96,9 @@
   <ItemGroup>
     <ClInclude Include="FastVideo.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\UnityProject\Assets\UseRenderingPlugin.cs" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

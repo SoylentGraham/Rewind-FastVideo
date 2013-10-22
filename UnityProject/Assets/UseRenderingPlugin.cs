@@ -11,7 +11,7 @@ public class UseRenderingPlugin : MonoBehaviour {
 	private static extern void SetDebugLogFunction(System.IntPtr FunctionPtr);
 	static void DebugLogCallBack(string str)
 	{
-	    Debug.Log("::CallBaaaaaaack : " + str);
+	    Debug.Log("FastVideo: " + str);
 	}
 
 	//	functions in plugin...
@@ -23,6 +23,12 @@ public class UseRenderingPlugin : MonoBehaviour {
 	//	gr: note: char in c# seems to be a wchar
 	[DllImport ("FastVideo")]
 	private static extern void SetTextureFromUnity(System.IntPtr texture, char[] Filename, int Length);
+
+	[DllImport ("FastVideo")]
+	private static extern void SetMaxFrameBuffer(int MaxFrameBuffer);
+	
+	[DllImport ("FastVideo")]
+	private static extern void SetMaxFramePool(int MaxFramePool);
 
 
 	IEnumerator Start () 
@@ -53,6 +59,7 @@ public class UseRenderingPlugin : MonoBehaviour {
 		//	start decoding to texture
 		System.String Filename = "C:\\Users\\RWD Artist\\Desktop\\RWD_Lexus_4k_recut.ogv";
 		SetTextureFromUnity(tex.GetNativeTexturePtr(), Filename.ToCharArray(), Filename.Length );
+		SetMaxFrameBuffer( 20 );
 	}
 	
 	private IEnumerator CallPluginAtEndOfFrames ()

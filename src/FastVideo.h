@@ -37,6 +37,9 @@ extern "C"
 #endif
 
 
+#define DEFAULT_MAX_FRAME_BUFFER	10
+#define DEFAULT_MAX_FRAME_POOL		20
+
 // Which platform we are on?
 #if _MSC_VER
 #define UNITY_WIN 1
@@ -60,20 +63,24 @@ extern "C"
 
 
 // Graphics device identifiers in Unity
-enum GfxDeviceRenderer
+namespace GfxDeviceRenderer
 {
-	kGfxRendererOpenGL = 0,          // OpenGL
-	kGfxRendererD3D9,                // Direct3D 9
-	kGfxRendererD3D11,               // Direct3D 11
-	kGfxRendererGCM,                 // Sony PlayStation 3 GCM
-	kGfxRendererNull,                // "null" device (used in batch mode)
-	kGfxRendererHollywood,           // Nintendo Wii
-	kGfxRendererXenon,               // Xbox 360
-	kGfxRendererOpenGLES,            // OpenGL ES 1.1
-	kGfxRendererOpenGLES20Mobile,    // OpenGL ES 2.0 mobile variant
-	kGfxRendererMolehill,            // Flash 11 Stage3D
-	kGfxRendererOpenGLES20Desktop,   // OpenGL ES 2.0 desktop variant (i.e. NaCl)
-	kGfxRendererCount
+	enum Type
+	{
+		Invalid = -1,
+		kGfxRendererOpenGL = 0,          // OpenGL
+		kGfxRendererD3D9,                // Direct3D 9
+		kGfxRendererD3D11,               // Direct3D 11
+		kGfxRendererGCM,                 // Sony PlayStation 3 GCM
+		kGfxRendererNull,                // "null" device (used in batch mode)
+		kGfxRendererHollywood,           // Nintendo Wii
+		kGfxRendererXenon,               // Xbox 360
+		kGfxRendererOpenGLES,            // OpenGL ES 1.1
+		kGfxRendererOpenGLES20Mobile,    // OpenGL ES 2.0 mobile variant
+		kGfxRendererMolehill,            // Flash 11 Stage3D
+		kGfxRendererOpenGLES20Desktop,   // OpenGL ES 2.0 desktop variant (i.e. NaCl)
+		kGfxRendererCount
+	};
 };
 
 
@@ -98,6 +105,8 @@ extern "C" void EXPORT_API UnityRenderEvent (int eventID);
 
 extern "C" void EXPORT_API SetTimeFromUnity(float t);
 extern "C" void EXPORT_API SetTextureFromUnity(void* texturePtr,const wchar_t* Filename,const int FilenameLength);
+extern "C" void EXPORT_API SetMaxFrameBuffer(int MaxFrameBuffer);
+extern "C" void EXPORT_API SetMaxFramePool(int MaxFramePool);
 
 
 //	http://www.gamedev.net/page/resources/_/technical/game-programming/c-plugin-debug-log-with-unity-r3349
@@ -135,7 +144,6 @@ public:
 	unsigned char	mAlpha;
 };
 
-#define PIXEL_BLOCK_SIZE	256
 
 class TFramePixels
 {
@@ -204,15 +212,13 @@ class TDecodeParams
 public:
 	TDecodeParams() :
 		mWidth			( 1 ),
-		mHeight			( 1 ),
-		mMaxFrameBuffer	( 10 )
+		mHeight			( 1 )
 	{
 	}
 
 public:
-	int			mWidth;
-	int			mHeight;
-	int			mMaxFrameBuffer;
+	int				mWidth;
+	int				mHeight;
 	std::wstring	mFilename;
 };
 
@@ -296,6 +302,7 @@ public:
 	virtual ~TDecodeThread();
 
 	TFramePixels*				PopFrame();
+	bool						HasVideoToPop();
 
 protected:
 	virtual void				run();
@@ -315,7 +322,7 @@ protected:
 class TFramePool
 {
 public:
-	TFramePool(int MaxPoolSize=30);
+	TFramePool(int MaxPoolSize=DEFAULT_MAX_FRAME_POOL);
 
 	TFramePixels*	Alloc();		//	increase pool size
 	bool			Free(TFramePixels* pFrame);
@@ -336,3 +343,4 @@ void DebugLog(const char* str);
 void DebugLog(const std::string& string);
 
 std::string ofToString(int Integer);
+

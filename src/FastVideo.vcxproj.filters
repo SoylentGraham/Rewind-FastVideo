@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="FastVideo.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="FastVideo.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Script cs">
+      <UniqueIdentifier>{b7c12cfd-bf9d-41f3-9532-b552f349dbc1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\UnityProject\Assets\UseRenderingPlugin.cs">
+      <Filter>Script cs</Filter>
+    </None>
+  </ItemGroup>
+</Project>
