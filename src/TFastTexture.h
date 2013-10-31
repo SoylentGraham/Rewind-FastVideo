@@ -20,7 +20,7 @@ public:
 	void				OnPostRender(TUnityDevice_DX11& Device);	//	callback from unity render thread
 
 	bool				SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& Device);
-	bool				SetVideo(const std::wstring& Filename);
+	bool				SetVideo(const std::wstring& Filename,TUnityDevice_DX11& Device);
 
 private:
 	bool				CreateDynamicTexture(TUnityDevice_DX11& Device);

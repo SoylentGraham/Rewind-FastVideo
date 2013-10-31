@@ -43,12 +43,10 @@ int GetChannelCount(enum AVPixelFormat Format)
 	{
 	case AV_PIX_FMT_RGB24:
 		return 3;
+	case PIX_FMT_RGBA:
+		return 4;
 	};
 
-	//	if not a supported type, return 0
-	BufferString<100> Debug;
-	Debug << "Unsupported format; " << Format;
-	Unity::DebugLog( Debug );
 	return 0;
 }
 
@@ -147,18 +145,23 @@ void TDecodeThread::PushFrame(TFramePixels* pFrame)
 
 TFrameMeta TDecodeThread::GetDecodedFrameMeta()
 {
-	//	get the decode-to-format
-	//	gr: 4 channel as dx11 doesn't do 24bpp so we need RGBA
-	auto VideoFormat = GetVideoFrameMeta();
-	//TFrameMeta Format( VideoFormat.mWidth, VideoFormat.mHeight, 4 );
-	TFrameMeta Format( 4096, 2048, 4 );
-	return Format;
+	ofMutex::ScopedLock lock( mDecodeFormat );
+	return mDecodeFormat;
+}
+	
+	
+void TDecodeThread::SetDecodedFrameMeta(TFrameMeta Format)
+{
+	ofMutex::ScopedLock lock( mDecodeFormat );
+	mDecodeFormat.Get() = Format;
 }
 
 bool TDecodeThread::DecodeNextFrame()
 {
 	//	alloc a frame
 	TFramePixels* Frame = mFramePool.Alloc( GetDecodedFrameMeta() );
+
+	//	out of memory/pool, or non-valid format (ie. dont know output dimensions yet)
 	if ( !Frame )
 		return false;
 

@@ -127,6 +127,7 @@ public:
 	bool						Init();				//	do initial load and start thread
 	TFrameMeta					GetVideoFrameMeta()		{	return mDecoder.GetFrameMeta();	}
 	TFrameMeta					GetDecodedFrameMeta();
+	void						SetDecodedFrameMeta(TFrameMeta Format);
 	TFramePixels*				PopFrame();
 	bool						HasVideoToPop();
 	bool						IsFinishedDecoding()	{	return mFinishedDecoding;	}
@@ -137,6 +138,7 @@ protected:
 	void						PushFrame(TFramePixels* pFrame);
 
 protected:
+	ofMutexT<TFrameMeta>		mDecodeFormat;
 	bool						mFinishedDecoding;
 	TFramePool&					mFramePool;
 	TDecoder					mDecoder;

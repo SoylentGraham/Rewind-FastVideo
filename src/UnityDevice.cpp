@@ -15,6 +15,17 @@ DXGI_FORMAT GetFormat(TFrameMeta Meta)
 	return DXGI_FORMAT_UNKNOWN;
 }
 
+int GetChannels(DXGI_FORMAT Format)
+{
+	//	return 0 if none supported
+	switch ( Format )
+	{
+	case DXGI_FORMAT_R8G8B8A8_UNORM:
+		return 4;
+	};
+
+	return 0;
+}
 	
 ofPtr<TUnityDevice_DX11> Unity::AllocDevice(Unity::TGfxDevice::Type Type,void* Device)
 {
@@ -84,8 +95,8 @@ TFrameMeta TUnityDevice_DX11::GetTextureMeta(ID3D11Texture2D* Texture)
 	D3D11_TEXTURE2D_DESC Desc;
 	Texture->GetDesc( &Desc );
 
-	//	todo: get channels
-	TFrameMeta TextureMeta( Desc.Width, Desc.Height, 0 );
+	int Channels = GetChannels( Desc.Format );
+	TFrameMeta TextureMeta( Desc.Width, Desc.Height, Channels );
 	return TextureMeta;
 }
 

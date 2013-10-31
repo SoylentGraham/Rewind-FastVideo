@@ -23,6 +23,13 @@ void TFastTexture::DeleteTargetTexture()
 void TFastTexture::DeleteDynamicTexture()
 {
 	mDynamicTexture.Release();
+
+	//	update decode-to-format
+	if ( mDecoderThread )
+	{
+		mDecoderThread->SetDecodedFrameMeta( TFrameMeta() );
+	}
+
 }
 
 void TFastTexture::DeleteDecoderThread()
@@ -36,27 +43,45 @@ void TFastTexture::DeleteDecoderThread()
 
 bool TFastTexture::CreateDynamicTexture(TUnityDevice_DX11& Device)
 {
-	//	get dimensions
-	if ( !mDecoderThread )
+	//	dynamic texture needs to be same size as target texture
+	if ( !mTargetTexture )
 	{
 		DeleteDynamicTexture();
 		return false;
 	}
-	
-	auto FrameMeta = mDecoderThread->GetDecodedFrameMeta();
+
+	auto TargetTextureMeta = Device.GetTextureMeta( mTargetTexture );
 
 	//	if dimensions are different, delete old one
-	auto TextureMeta = Device.GetTextureMeta( mDynamicTexture );
-	if ( !FrameMeta.IsEqualSize(TextureMeta) )
+	if ( mDynamicTexture )
 	{
-		DeleteDynamicTexture();
+		auto CurrentTextureMeta = Device.GetTextureMeta( mDynamicTexture );
+		if ( !CurrentTextureMeta.IsEqualSize(TargetTextureMeta) )
+		{
+			DeleteDynamicTexture();
+		}
 	}
 
 	//	need to create a new one
 	if ( !mDynamicTexture )
-		mDynamicTexture = Device.AllocTexture( FrameMeta );
+	{
+		mDynamicTexture = Device.AllocTexture( TargetTextureMeta );
+	}
 
-	return mDynamicTexture!=nullptr;
+	if ( !mDynamicTexture )
+	{
+		DeleteDynamicTexture();
+		return false;
+	}
+
+	//	update decode-to-format
+	if ( mDecoderThread )
+	{
+		TFrameMeta TextureFormat = Device.GetTextureMeta( mDynamicTexture );
+		mDecoderThread->SetDecodedFrameMeta( TextureFormat );
+	}
+
+	return true;
 }
 
 bool TFastTexture::SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& Device)
@@ -75,7 +100,7 @@ bool TFastTexture::SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& 
 	return true;
 }
 
-bool TFastTexture::SetVideo(const std::wstring& Filename)
+bool TFastTexture::SetVideo(const std::wstring& Filename,TUnityDevice_DX11& Device)
 {
 	DeleteDecoderThread();
 
@@ -90,6 +115,13 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 	{
 		DeleteDecoderThread();
 		return false;
+	}
+
+	//	if we already have the output texture we should set the decode format
+	if ( mDynamicTexture )
+	{
+		TFrameMeta TextureFormat = Device.GetTextureMeta( mDynamicTexture );
+		mDecoderThread->SetDecodedFrameMeta( TextureFormat );
 	}
 
 	return true;
@@ -219,6 +251,7 @@ void TFastTexture::OnPostRender(TUnityDevice_DX11& Device)
 	}
 
 	//	copy to real texture (gpu->gpu)
+	//	gr: this will fail if dimensions/format different
 	ctx->CopyResource( mTargetTexture, mDynamicTexture );
 
 	//	free frame

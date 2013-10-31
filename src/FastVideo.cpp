@@ -149,7 +149,7 @@ extern "C" EXPORT_API bool SetVideo(Unity::ulong Instance,const wchar_t* pFilena
 	for ( int i=0;	i<Length;	i++ )
 		Filename += pFilename[i];
 
-	return pInstance->SetVideo( Filename );
+	return pInstance->SetVideo( Filename, gFastVideo.GetDevice() );
 }
 
 

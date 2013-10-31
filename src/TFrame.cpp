@@ -29,7 +29,6 @@ TFramePool::TFramePool(int MaxPoolSize) :
 TFramePixels* TFramePool::Alloc(TFrameMeta FrameMeta)
 {
 	//	can't alloc invalid frame 
-	assert( FrameMeta.IsValid() );
 	if ( !FrameMeta.IsValid() )
 		return nullptr;
 
