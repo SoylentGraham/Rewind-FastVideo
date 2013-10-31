@@ -191,6 +191,8 @@ TDecoder::~TDecoder()
 
 bool TDecoder::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacket,std::shared_ptr<AVFrame>& Frame,int& DataOffset)
 {
+	ofScopeTimerWarning Timer( __FUNCTION__, 1 );
+
 	//	not setup right??
 	if ( !mVideoStream )
 		return false;
@@ -261,19 +263,9 @@ bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame)
 	TFrameMeta FrameMeta;
 	if ( !DecodeNextFrame( FrameMeta, mCurrentPacket, mFrame, mDataOffset ) )
 		return false;
-	/*
-	//	frame mis match
-	if ( !OutputFrame.mMeta.IsEqualSize(FrameMeta) )
-	{
-		BufferString<1000> Debug;
-		Debug << "Output size (" << OutputFrame.mMeta.mWidth << "," << OutputFrame.mMeta.mHeight << ") mis match to video size (" << FrameMeta.mWidth << "," << FrameMeta.mHeight << ")";
-		Unity::DebugLog( Debug );
-		return false;
-	}
-	*/
+	
+	ofScopeTimerWarning Timer( "DecodeFrame - Convert/Resize", 1 );
 	AVPicture pict;
-			
-	//avpicture_alloc( &pict, PIX_FMT_RGBA, OutputFrame->mWidth, OutputFrame->mHeight );
 	memset(&pict, 0, sizeof(pict));
 	avpicture_fill(&pict, OutputFrame.GetData(), GetFormat( OutputFrame.mMeta ), OutputFrame.GetWidth(), OutputFrame.GetHeight() );
 
@@ -285,104 +277,7 @@ bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame)
 	}
 	sws_scale(ctxt, mFrame->data, mFrame->linesize, 0, mFrame->height, pict.data, pict.linesize);
 
-	// pic.data[0] now contains the image data in RGB format (3 bytes)
-	// and pic.linesize[0] is the pitch of the data (ie. size of a row in memory, which can be larger than width*sizeof(pixel))
-
-	// we can for example upload it to an OpenGL texture (note: untested code)
-	// glBindTexture(GL_TEXTURE_2D, myTex);
-	// for (int i = 0; i < avFrame->height; ++i) {
-	// 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, i, avFrame->width, 1, GL_RGB, GL_UNSIGNED_BYTE, avFrame->data[0] + (i * pic.linesize[0]));
-	// }
-
-	//avpicture_free(&pict);
 	return true;
-	/*
-#if defined(ENABLE_DECODER)
-	//	not setup right??
-	if ( !mVideoStream )
-		return false;
-
-	//	keep processing until a frame is loaded
-	int isFrameAvailable = false;
-	while ( !isFrameAvailable )
-	{
-		// reading a packet using libavformat
-		if (mDataOffset >= mCurrentPacket.packet.size) 
-		{
-			do 
-			{
-				mCurrentPacket.reset( mContext.get());
-				if (mCurrentPacket.packet.stream_index != mVideoStream->index)
-					continue;
-			}
-			while(0);
-		}
-
-		// preparing the packet that we will send to libavcodec
-		auto& packetToSend = mCurrentPacket.packet;
-	
-		// sending data to libavcodec
-		const auto processedLength = avcodec_decode_video2(mCodec.get(), mFrame.get(), &isFrameAvailable, &packetToSend);
-		if (processedLength < 0) 
-		{
-			//av_free_packet(&packet);
-			Unity::DebugLog("Error while processing the data");
-			return false;
-		}
-		mDataOffset += processedLength;
-
-		// processing the image if available
-		if (isFrameAvailable) 
-		{
-			//	debug first time
-			if ( mFirstDecode )
-			{
-				BufferString<100> Debug;
-				Debug << "Decoded frame " << mFrame->width << " x " << mFrame->height << " format: " << mFrame->format;
-				Unity::DebugLog( Debug );
-				mFirstDecode = false;
-			}
-
-			//	frame mis match
-			TFrameMeta FrameMeta( mFrame->width, mFrame->height, GetChannelCount(static_cast<AVPixelFormat>(mFrame->format)) );
-			if ( OutputFrame.mMeta != FrameMeta )
-			{
-				Unity::DebugLog("Frame meta mis match");
-				return false;
-			}
-
-			AVPicture pict;
-			
-			//avpicture_alloc( &pict, PIX_FMT_RGBA, OutputFrame->mWidth, OutputFrame->mHeight );
-			memset(&pict, 0, sizeof(pict));
-			avpicture_fill(&pict, OutputFrame.GetData(), GetFormat( OutputFrame.mMeta ), OutputFrame.GetWidth(), OutputFrame.GetHeight() );
-
-			auto ctxt = sws_getContext( mFrame->width, mFrame->height, static_cast<PixelFormat>(mFrame->format), OutputFrame.GetWidth(), OutputFrame.GetHeight(), GetFormat( OutputFrame.mMeta ), SWS_BILINEAR, nullptr, nullptr, nullptr);
-			if ( !ctxt )
-			{
-				Unity::DebugLog("Failed to get converter");
-				return false;
-			}
-			sws_scale(ctxt, mFrame->data, mFrame->linesize, 0, mFrame->height, pict.data, pict.linesize);
-
-			// pic.data[0] now contains the image data in RGB format (3 bytes)
-			// and pic.linesize[0] is the pitch of the data (ie. size of a row in memory, which can be larger than width*sizeof(pixel))
-
-			// we can for example upload it to an OpenGL texture (note: untested code)
-			// glBindTexture(GL_TEXTURE_2D, myTex);
-			// for (int i = 0; i < avFrame->height; ++i) {
-			// 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, i, avFrame->width, 1, GL_RGB, GL_UNSIGNED_BYTE, avFrame->data[0] + (i * pic.linesize[0]));
-			// }
-
-			//avpicture_free(&pict);
-			
-		}
-	}
-
-	return true;
-#endif
-	return false;
-	*/
 }
 
 

@@ -164,10 +164,6 @@ void Unity::DebugLog(const char* str)
 {
 	//	print out to visual studio debugger
 	ofLogNotice(str);
-	ofLogNotice("\n");
-
-	//	print to stdout
-	//printf ("%s\n", str);
 
 	//	print to unity if we have a function set
 	if ( gDebugFunc )
