@@ -1,14 +1,105 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="FastVideo.cpp" />
+    <ClCompile Include="FastVideo.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="SoyDecoder.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ofxSoylent\src\SoyRef.cpp">
+      <Filter>ofxSoylent</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ofxSoylent\src\SoyThread.cpp">
+      <Filter>ofxSoylent</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ofxSoylent\src\SoyTypes.cpp">
+      <Filter>ofxSoylent</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ofxSoylent\src\SoyDebug.cpp">
+      <Filter>ofxSoylent</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ofxSoylent\src\MemHeap.cpp">
+      <Filter>ofxSoylent</Filter>
+    </ClCompile>
+    <ClCompile Include="TFastTexture.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="UnityDevice.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
+    <ClCompile Include="TFrame.cpp">
+      <Filter>Src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="FastVideo.h" />
+    <ClInclude Include="FastVideo.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="SoyDecoder.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\chartype.hpp">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\ofxSoylent.h">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\SoyPair.h">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\SoyRef.h">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\SoyThread.h">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\SoyTime.h">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\SoyTypes.h">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\SoyDebug.h">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\array.hpp">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\BufferArray.hpp">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\String.hpp">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\sortarray.h">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\HeapArray.hpp">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ofxSoylent\src\MemHeap.hpp">
+      <Filter>ofxSoylent</Filter>
+    </ClInclude>
+    <ClInclude Include="TFastTexture.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="UnityDevice.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="TFrame.h">
+      <Filter>Src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Script cs">
       <UniqueIdentifier>{b7c12cfd-bf9d-41f3-9532-b552f349dbc1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Src">
+      <UniqueIdentifier>{a1d83186-5c0b-411c-ad05-0eaae439c28f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ofxSoylent">
+      <UniqueIdentifier>{78def9b5-bde0-4666-84f5-d88c4e666189}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

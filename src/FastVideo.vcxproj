@@ -39,19 +39,19 @@
   <PropertyGroup>
     <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">build/$(Configuration)\</IntDir>
-    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</LinkIncremental>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</LinkIncremental>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)build/$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">build/$(Configuration)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkIncremental>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectName)</TargetName>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\UnityProject\Assets\Plugins\</OutDir>
-    <IncludePath Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectDir);$(ProjectDir)\ffmpeg\include;$(IncludePath)</IncludePath>
+    <IncludePath Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectDir);$(ProjectDir)\ffmpeg\include;D:\ofxSoylent\src;$(IncludePath)</IncludePath>
     <LibraryPath Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectDir)\ffmpeg\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;RENDERINGPLUGIN_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NO_OPENFRAMEWORKS;WIN32;_DEBUG;_WINDOWS;_USRDLL;RENDERINGPLUGIN_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -73,7 +73,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;RENDERINGPLUGIN_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NO_OPENFRAMEWORKS;WIN32;NDEBUG;_WINDOWS;_USRDLL;RENDERINGPLUGIN_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <PrecompiledHeader>
@@ -91,10 +91,37 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\ofxSoylent\src\MemHeap.cpp" />
+    <ClCompile Include="..\..\ofxSoylent\src\SoyDebug.cpp" />
+    <ClCompile Include="..\..\ofxSoylent\src\SoyRef.cpp" />
+    <ClCompile Include="..\..\ofxSoylent\src\SoyThread.cpp" />
+    <ClCompile Include="..\..\ofxSoylent\src\SoyTypes.cpp" />
     <ClCompile Include="FastVideo.cpp" />
+    <ClCompile Include="SoyDecoder.cpp" />
+    <ClCompile Include="TFastTexture.cpp" />
+    <ClCompile Include="TFrame.cpp" />
+    <ClCompile Include="UnityDevice.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\ofxSoylent\src\array.hpp" />
+    <ClInclude Include="..\..\ofxSoylent\src\BufferArray.hpp" />
+    <ClInclude Include="..\..\ofxSoylent\src\chartype.hpp" />
+    <ClInclude Include="..\..\ofxSoylent\src\HeapArray.hpp" />
+    <ClInclude Include="..\..\ofxSoylent\src\MemHeap.hpp" />
+    <ClInclude Include="..\..\ofxSoylent\src\ofxSoylent.h" />
+    <ClInclude Include="..\..\ofxSoylent\src\sortarray.h" />
+    <ClInclude Include="..\..\ofxSoylent\src\SoyDebug.h" />
+    <ClInclude Include="..\..\ofxSoylent\src\SoyPair.h" />
+    <ClInclude Include="..\..\ofxSoylent\src\SoyRef.h" />
+    <ClInclude Include="..\..\ofxSoylent\src\SoyThread.h" />
+    <ClInclude Include="..\..\ofxSoylent\src\SoyTime.h" />
+    <ClInclude Include="..\..\ofxSoylent\src\SoyTypes.h" />
+    <ClInclude Include="..\..\ofxSoylent\src\String.hpp" />
     <ClInclude Include="FastVideo.h" />
+    <ClInclude Include="SoyDecoder.h" />
+    <ClInclude Include="TFastTexture.h" />
+    <ClInclude Include="TFrame.h" />
+    <ClInclude Include="UnityDevice.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\UnityProject\Assets\UseRenderingPlugin.cs" />

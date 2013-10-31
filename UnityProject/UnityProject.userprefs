@@ -1,8 +1,16 @@
 ﻿<Properties>
   <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
-  <MonoDevelop.Ide.Workbench />
+  <MonoDevelop.Ide.Workbench ActiveDocument="Assets\UseRenderingPlugin.cs">
+    <Files>
+      <File FileName="Assets\UseRenderingPlugin.cs" Line="124" Column="1" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
   <MonoDevelop.Ide.DebuggingService.Breakpoints>
-    <BreakpointStore />
+    <BreakpointStore>
+      <Breakpoint file="D:\Rewind-FastVideo\UnityProject\Assets\UseRenderingPlugin.cs" line="91" />
+      <Breakpoint file="D:\Rewind-FastVideo\UnityProject\Assets\UseRenderingPlugin.cs" line="97" />
+      <Breakpoint file="D:\Rewind-FastVideo\UnityProject\Assets\UseRenderingPlugin.cs" line="127" />
+    </BreakpointStore>
   </MonoDevelop.Ide.DebuggingService.Breakpoints>
   <MonoDevelop.Ide.DebuggingService.PinnedWatches />
 </Properties>
