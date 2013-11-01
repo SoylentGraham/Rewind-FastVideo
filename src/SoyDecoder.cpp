@@ -179,14 +179,17 @@ bool TDecodeThread::DecodeNextFrame()
 
 
 TDecoder::TDecoder() :
-	mVideoStream	( NULL ),
-	mDataOffset		( 0 )
+	mVideoStream	( nullptr ),
+	mDataOffset		( 0 ),
+	mScaleContext	( nullptr )
 {
 }
 
 
 TDecoder::~TDecoder()
 {
+	sws_freeContext( mScaleContext );
+	mScaleContext = nullptr;
 }
 
 bool TDecoder::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacket,std::shared_ptr<AVFrame>& Frame,int& DataOffset)
@@ -260,22 +263,35 @@ bool TDecoder::PeekNextFrame(TFrameMeta& FrameMeta)
 
 bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame)
 {
+	ofScopeTimerWarning Timer( "DecodeNextFrame TOTAL", 1 );
+
 	TFrameMeta FrameMeta;
 	if ( !DecodeNextFrame( FrameMeta, mCurrentPacket, mFrame, mDataOffset ) )
 		return false;
 	
-	ofScopeTimerWarning Timer( "DecodeFrame - Convert/Resize", 1 );
+	//	gr: avpicture takes no time (just filling a struct?)
 	AVPicture pict;
 	memset(&pict, 0, sizeof(pict));
 	avpicture_fill(&pict, OutputFrame.GetData(), GetFormat( OutputFrame.mMeta ), OutputFrame.GetWidth(), OutputFrame.GetHeight() );
 
-	auto ctxt = sws_getContext( mFrame->width, mFrame->height, static_cast<PixelFormat>(mFrame->format), OutputFrame.GetWidth(), OutputFrame.GetHeight(), GetFormat( OutputFrame.mMeta ), SWS_BILINEAR, nullptr, nullptr, nullptr);
-	if ( !ctxt )
+	
+	ofScopeTimerWarning sws_getContext_Timer( "DecodeFrame - sws_getContext", 1 );
+	static int ScaleMode = SWS_POINT;
+//	static int ScaleMode = SWS_FAST_BILINEAR;
+//	static int ScaleMode = SWS_BILINEAR;
+//	static int ScaleMode = SWS_BICUBIC;
+	auto ScaleContext = sws_getCachedContext( mScaleContext, mFrame->width, mFrame->height, static_cast<PixelFormat>(mFrame->format), OutputFrame.GetWidth(), OutputFrame.GetHeight(), GetFormat( OutputFrame.mMeta ), ScaleMode, nullptr, nullptr, nullptr);
+	sws_getContext_Timer.Stop();
+
+	if ( !ScaleContext )
 	{
 		Unity::DebugLog("Failed to get converter");
 		return false;
 	}
-	sws_scale(ctxt, mFrame->data, mFrame->linesize, 0, mFrame->height, pict.data, pict.linesize);
+
+	ofScopeTimerWarning sws_scale_Timer( "DecodeFrame - sws_scale", 1 );
+	sws_scale( ScaleContext, mFrame->data, mFrame->linesize, 0, mFrame->height, pict.data, pict.linesize);
+	sws_scale_Timer.Stop();
 
 	return true;
 }

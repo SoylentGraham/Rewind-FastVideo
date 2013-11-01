@@ -112,6 +112,7 @@ public:
 	std::shared_ptr<AVFrame>			mFrame;			//	currently decoding to this frame
 	AVStream*							mVideoStream;	//	gr: change to index!
 	int									mDataOffset;
+	SwsContext*							mScaleContext;
 };
 
 
