@@ -1,6 +1,10 @@
 ﻿<Properties>
   <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
-  <MonoDevelop.Ide.Workbench />
+  <MonoDevelop.Ide.Workbench ActiveDocument="Assets\UseRenderingPlugin.cs">
+    <Files>
+      <File FileName="Assets\UseRenderingPlugin.cs" Line="170" Column="43" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
   <MonoDevelop.Ide.DebuggingService.Breakpoints>
     <BreakpointStore>
       <Breakpoint file="D:\Rewind-FastVideo\UnityProject\Assets\UseRenderingPlugin.cs" line="92" />

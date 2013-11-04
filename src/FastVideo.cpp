@@ -58,6 +58,14 @@ bool TFastVideo::FreeInstance(SoyRef InstanceRef)
 	mInstances.RemoveBlock( Index, 1 );
 	delete pInstance;
 	Unity::DebugLog( BufferString<100>() << "Free'd instance: " << InstanceRef );
+
+	//	if we have no more instances, the frame pool should be empty
+	if ( mInstances.IsEmpty() )
+	{
+		mFramePool.DebugUsedFrames();
+		assert( mFramePool.IsEmpty() );
+	}
+
 	return true;
 }
 
@@ -172,11 +180,15 @@ extern "C" void EXPORT_API SetDebugLogFunction(Unity::TDebugLogFunc pFunc)
 // Prints a string
 void Unity::DebugLog(const char* str)
 {
+	static bool EnableDebugLog = false;
+	if ( !EnableDebugLog )
+		return;
+
 	//	print out to visual studio debugger
 	ofLogNotice(str);
 
 	//	print to unity if we have a function set
-	if ( gDebugFunc )
+	if ( gDebugFunc && EnableDebugLog )
 	{
 		(*gDebugFunc)( str );
 	}

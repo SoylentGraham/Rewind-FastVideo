@@ -1,20 +1,42 @@
 #include "SoyDecoder.h"
+#include <SortArray.h>
+
+
+
+	
+class TSortPolicy_TFramePixelsByTimestamp
+{
+public:
+	static int		Compare(const TFramePixels* a,const TFramePixels* b)
+	{
+		auto Framea = a->mTimestamp;
+		auto Frameb = b->mTimestamp;
+
+		if ( a < b ) return -1;
+		if ( a > b ) return 1;
+		return 0;
+	}
+};
+
 
 
 BufferString<1000> GetAVError(int Error)
 {
+#if defined(ENABLE_DECODER)
 	char Buffer[1000];
-
 	if ( av_strerror( Error, Buffer, sizeof(Buffer)/sizeof(Buffer[0]) ) != 0 )
 	{
 		BufferString<1000> Debug;
 		Debug << "Unknown error: " << Error;
 		return Debug;
 	}
-
 	return Buffer;
+#else
+	return "AV not enabled";
+#endif
 }
 
+#if defined(ENABLE_DECODER)
 bool TPacket::reset(AVFormatContext* ctxt)
 {
 	if (packet.data)
@@ -35,8 +57,10 @@ bool TPacket::reset(AVFormatContext* ctxt)
 	}
 	return true;
 }
+#endif
 
 
+#if defined(ENABLE_DECODER)
 int GetChannelCount(enum AVPixelFormat Format)
 {
 	switch ( Format )
@@ -49,7 +73,10 @@ int GetChannelCount(enum AVPixelFormat Format)
 
 	return 0;
 }
+#endif
 
+
+#if defined(ENABLE_DECODER)
 enum AVPixelFormat GetFormat(const TFrameMeta& FrameMeta)
 {
 	if ( FrameMeta.mChannels == 3 )
@@ -64,11 +91,31 @@ enum AVPixelFormat GetFormat(const TFrameMeta& FrameMeta)
 
 	return PIX_FMT_NONE;
 }
+#endif
+
+TFrameBuffer::TFrameBuffer(int MaxFrameBufferSize,TFramePool& FramePool) :
+	mMaxFrameBufferSize	( ofMax(MaxFrameBufferSize,1) ),
+	mFramePool			( FramePool )
+{
+}
+	
+TFrameBuffer::~TFrameBuffer()
+{
+	ReleaseFrames();
+}
+
+bool TFrameBuffer::IsFull()
+{
+	ofMutex::ScopedLock Lock( mFrameMutex );
+	if ( mFrameBuffers.GetSize() >= mMaxFrameBufferSize )
+		return true;
+	return false;
+}
 
 
-TDecodeThread::TDecodeThread(TDecodeParams& Params,TFramePool& FramePool) :
+TDecodeThread::TDecodeThread(TDecodeParams& Params,TFrameBuffer& FrameBuffer,TFramePool& FramePool) :
 	SoyThread			( "TDecodeThread" ),
-	mFrameCount			( 0 ),
+	mFrameBuffer		( FrameBuffer ),
 	mFramePool			( FramePool ),
 	mParams				( Params ),
 	mFinishedDecoding	( false )
@@ -81,7 +128,7 @@ TDecodeThread::~TDecodeThread()
 	ofScopeTimerWarning Timer( __FUNCTION__, 1 );
 
 	Unity::DebugLog("~TDecodeThread release frames");
-	ReleaseFrames();
+	mFrameBuffer.ReleaseFrames();
 
 	Unity::DebugLog("~TDecodeThread WaitForThread");
 	waitForThread();
@@ -104,7 +151,7 @@ bool TDecodeThread::Init()
 	return true;
 }
 
-void TDecodeThread::ReleaseFrames()
+void TFrameBuffer::ReleaseFrames()
 {
 	ofMutex::ScopedLock lock( mFrameMutex );
 
@@ -116,23 +163,58 @@ void TDecodeThread::ReleaseFrames()
 	}
 }
 
-bool TDecodeThread::HasVideoToPop()
+bool TFrameBuffer::HasVideoToPop()
 {
 	ofMutex::ScopedLock lock( mFrameMutex );
 	return !mFrameBuffers.IsEmpty();
 }
 
 
-TFramePixels* TDecodeThread::PopFrame()
+TFramePixels* TFrameBuffer::PopFrame(SoyTime Timestamp)
 {
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock lock( mFrameMutex );
 
-	TFramePixels* PoppedFrame = NULL;
-	if ( !mFrameBuffers.IsEmpty() )
+	//	work out next frame we want to use
+	int PopFrameIndex = -1;
+
+	for ( int i=0;	i<mFrameBuffers.GetSize();	i++ )
 	{
-		PoppedFrame = mFrameBuffers.PopAt(0);
+		auto& FrameBuffer = *mFrameBuffers[i];
+		auto FrameTimestamp = FrameBuffer.mTimestamp;
+
+		//	in the future? break out of the loop and don't use i
+		if ( FrameTimestamp > Timestamp && Timestamp.IsValid() )
+			break;
+
+		//	past (or equal) so use this one
+		PopFrameIndex = i;
+		continue;
 	}
 
+	//	skipping some frames
+	int SkipCount = PopFrameIndex;
+	if ( SkipCount > 0 && SKIP_PAST_FRAMES )
+	{
+		BufferString<100> Debug;
+		Debug << "Skipping " << SkipCount << " frames";
+		Unity::DebugLog( Debug );
+
+		//	pop & release the first X frames we're going to skip
+		for ( int i=0;	i<SkipCount;	i++ )
+		{
+			auto* FrameBuffer = mFrameBuffers.PopAt(0);
+			mFramePool.Free( FrameBuffer );
+			PopFrameIndex--;
+		}
+		assert( PopFrameIndex == 0 );
+	}
+
+	//	nothing to use
+	if ( PopFrameIndex == -1 )
+		return NULL;
+
+	TFramePixels* PoppedFrame = mFrameBuffers.PopAt(0);
 	return PoppedFrame;
 }
 
@@ -144,10 +226,7 @@ void TDecodeThread::threadedFunction()
 		Sleep(1);
 
 		//	if buffer is filled, stop (don't buffer too many frames)
-		bool DoDecode = false;
-		mFrameMutex.lock();
-		DoDecode = (mFrameBuffers.GetSize() < mParams.mMaxFrameBuffers);
-		mFrameMutex.unlock();
+		bool DoDecode = !mFrameBuffer.IsFull();
 
 		if ( !DoDecode )
 			continue;
@@ -159,11 +238,14 @@ void TDecodeThread::threadedFunction()
 	}
 }
 
-void TDecodeThread::PushFrame(TFramePixels* pFrame)
+void TFrameBuffer::PushFrame(TFramePixels* pFrame)
 {
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock lock( mFrameMutex );
-	mFrameBuffers.PushBack( pFrame );
-	mFrameCount++;
+
+	//	sort by time, it's possible we get frames out of order due to encoding
+	auto SortedFrameBuffers = GetSortArray( mFrameBuffers, TSortPolicy_TFramePixelsByTimestamp() );
+	SortedFrameBuffers.Push( pFrame );
 }
 
 TFrameMeta TDecodeThread::GetDecodedFrameMeta()
@@ -184,14 +266,14 @@ void TDecodeThread::SetDecodedFrameMeta(TFrameMeta Format)
 	//	update
 	mDecodeFormat.Get() = Format;
 
-#if defined(ENABLE_DEBUG_FRAME)
+#if defined(ENABLE_DECODER_INIT_SIZE_FRAME)
 	//	push a green "OK" frame
-	TFramePixels* Frame = mFramePool.Alloc( GetDecodedFrameMeta() );
+	TFramePixels* Frame = mFramePool.Alloc( GetDecodedFrameMeta(), "Debug init" );
 	if ( Frame )
 	{
 		Unity::DebugLog( BufferString<100>()<<"Pushing Debug Frame; " << __FUNCTION__ );
-		Frame->SetColour( TColour(0,255,0,255) );
-		PushFrame( Frame );	
+		Frame->SetColour( ENABLE_DECODER_INIT_SIZE_FRAME );
+		mFrameBuffer.PushFrame( Frame );	
 	}
 	else
 	{
@@ -203,42 +285,73 @@ void TDecodeThread::SetDecodedFrameMeta(TFrameMeta Format)
 
 }
 
+SoyTime TDecodeThread::GetMinTimestamp()
+{
+	ofMutex::ScopedLock Lock( mMinTimestamp );
+	return mMinTimestamp;
+}
+
+void TDecodeThread::SetMinTimestamp(SoyTime Timestamp)
+{
+	ofMutex::ScopedLock Lock( mMinTimestamp );
+	mMinTimestamp.Get() = Timestamp;
+}
+
 bool TDecodeThread::DecodeNextFrame()
 {
+	ofScopeTimerWarning Timer( "thread DecodeNextFrame", 1 );
+
 	//	alloc a frame
-	TFramePixels* Frame = mFramePool.Alloc( GetDecodedFrameMeta() );
+	TFramePixels* Frame = mFramePool.Alloc( GetDecodedFrameMeta(), __FUNCTION__ );
 
 	//	out of memory/pool, or non-valid format (ie. dont know output dimensions yet)
 	if ( !Frame )
 		return false;
 
-	if ( !mDecoder.DecodeNextFrame( *Frame ) )
+	bool TryAgain = true;
+	while ( TryAgain )
 	{
-		mFinishedDecoding = true;
-		mFramePool.Free( Frame );
-		return false;
+		SoyTime MinTimestamp = GetMinTimestamp();
+
+		//	success!
+		if ( mDecoder.DecodeNextFrame( *Frame, MinTimestamp, TryAgain ) )
+			break;
+		
+		//	failed, and failed hard
+		if ( !TryAgain )
+		{
+			mFinishedDecoding = true;
+			mFramePool.Free( Frame );
+			return false;
+		}
 	}
 
-	PushFrame( Frame );
+	mFrameBuffer.PushFrame( Frame );
 
 	return true;
 }
 
 
-TDecoder::TDecoder() :
+TDecoder::TDecoder()
+#if defined(ENABLE_DECODER)
+	:
+	mScaleContext	( nullptr ),
 	mVideoStream	( nullptr ),
-	mDataOffset		( 0 ),
-	mScaleContext	( nullptr )
+	mDataOffset		( 0 )
+#endif
 {
 }
 
 
 TDecoder::~TDecoder()
 {
+#if defined(ENABLE_DECODER)
 	sws_freeContext( mScaleContext );
 	mScaleContext = nullptr;
+#endif
 }
 
+#if defined(ENABLE_DECODER)
 bool TDecoder::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacket,std::shared_ptr<AVFrame>& Frame,int& DataOffset)
 {
 	ofScopeTimerWarning Timer( __FUNCTION__, 1 );
@@ -290,9 +403,11 @@ bool TDecoder::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacket,std:
 	//	kept processing until we ran out of data without a result
 	return false;
 }
+#endif
 
 bool TDecoder::PeekNextFrame(TFrameMeta& FrameMeta)
 {
+#if defined(ENABLE_DECODER)
 	//	not setup right??
 	if ( !mVideoStream )
 		return false;
@@ -305,17 +420,44 @@ bool TDecoder::PeekNextFrame(TFrameMeta& FrameMeta)
 		return false;
 
 	return true;
+#else
+	return false;
+#endif
 }
 
 
-bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame)
+bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimestamp,bool& TryAgain)
 {
+	TryAgain = false;
+
+#if defined(ENABLE_DECODER)
 	ofScopeTimerWarning Timer( "DecodeNextFrame TOTAL", 1 );
 
 	TFrameMeta FrameMeta;
 	if ( !DecodeNextFrame( FrameMeta, mCurrentPacket, mFrame, mDataOffset ) )
 		return false;
 	
+	//	work out timestamp
+	double FrameRate = av_q2d( mVideoStream->r_frame_rate );
+	//	avoid /zero
+	FrameRate = ofMax(1.0/60.0,1.0/FrameRate);
+	double TimeBase = av_q2d( mVideoStream->time_base );
+	auto PresentationTimestamp = mFrame->pts;
+	double Timestamp = mFrame->pts * TimeBase;
+	double TimeSecs = Timestamp * FrameRate;
+	double TimeMs = TimeSecs * 1000.f;
+	OutputFrame.mTimestamp = SoyTime( static_cast<uint64>(TimeMs) );
+
+	//	too far behind, skip it
+	if ( OutputFrame.mTimestamp < MinTimestamp && MinTimestamp.IsValid() && !STORE_PAST_FRAMES )
+	{
+		BufferString<100> Debug;
+		Debug << "Decoded frame " << OutputFrame.mTimestamp << " too far behind " << MinTimestamp;
+		Unity::DebugLog( Debug );
+		TryAgain = true;
+		return true;
+	}
+
 	//	gr: avpicture takes no time (just filling a struct?)
 	AVPicture pict;
 	memset(&pict, 0, sizeof(pict));
@@ -341,12 +483,17 @@ bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame)
 	sws_scale_Timer.Stop();
 
 	return true;
+#else
+	return false;
+#endif
 }
 
 
 
 bool TDecoder::Init(const std::wstring& Filename)
 {
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
+
 #if defined(ENABLE_DECODER)
 	std::string Filenamea( Filename.begin(), Filename.end() );
 

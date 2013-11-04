@@ -25,87 +25,113 @@ TFramePool::TFramePool(int MaxPoolSize) :
 	mPoolMaxSize	( ofMax(1,MaxPoolSize) )
 {
 }
+	
+void TFramePool::DebugUsedFrames()
+{
+	ofMutex::ScopedLock lock( mFrameMutex );
 
-TFramePixels* TFramePool::Alloc(TFrameMeta FrameMeta)
+	for ( int i=0;	i<mUsedPool.GetSize();	i++ )
+	{
+		auto& Frame = *mUsedPool[i];
+		
+		BufferString<1000> Debug;
+		Debug << "Frame [" << i << "] allocated; owner: " << Frame.mDebugOwner;
+		Unity::DebugLog( Debug );
+	}
+}
+
+
+bool TFramePool::IsEmpty()
+{
+	ofMutex::ScopedLock lock( mFrameMutex );
+
+	int UsedSlots = mUsedPool.GetSize();
+	return (UsedSlots==0);
+}
+
+int TFramePool::GetAllocatedCount()
+{
+	return mFreePool.GetSize() + mUsedPool.GetSize();
+}
+
+TFramePixels* TFramePool::Alloc(TFrameMeta FrameMeta,const char* Owner)
 {
 	//	can't alloc invalid frame 
 	if ( !FrameMeta.IsValid() )
 		return nullptr;
 
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock lock( mFrameMutex );
 
 	//	any free?
 	TFramePixels* FreeFrame = NULL;
 
-	for ( int p=0;	p<(int)mPool.size();	p++ )
+	if ( !mFreePool.IsEmpty() )
 	{
-		if ( mPoolUsed[p] )
-			continue;
-
-		auto* PoolFrame = mPool[p];
-
-		//	cant use one with different format
-		if ( PoolFrame->mMeta != FrameMeta )
-			continue;
-
-		FreeFrame = mPool[p];
-		mPoolUsed[p] = true;
+		FreeFrame = mFreePool.PopBack();
 	}
-
-	//	alloc a new one if we're not at our limit
-	if ( !FreeFrame )
+	else
 	{
-		if ( (int)mPool.size() < mPoolMaxSize )
+		if ( GetAllocatedCount() < mPoolMaxSize )
 		{
-			FreeFrame = new TFramePixels( FrameMeta );
+			FreeFrame = new TFramePixels( FrameMeta, "TFramePool - alloc" );
 			BufferString<1000> Debug;
-			Debug << "Allocating new block; " << PtrToInt(FreeFrame) << " pool size; " << mPool.size();
+			Debug << "Allocating new block; " << PtrToInt(FreeFrame) << " pool size; " << GetAllocatedCount();
 			Unity::DebugLog( Debug );
 
 			if ( FreeFrame )
-			{
-				mPool.push_back( FreeFrame );
-				mPoolUsed.push_back( true );
-			}
+				mUsedPool.PushBack( FreeFrame );
 		}
 		else
 		{
-			BufferString<1000> Debug;
-			Debug << "Frame pool is full (" << mPool.size() << "/; " << mPool.size() << ")";
-			Unity::DebugLog( Debug );
+			if ( SHOW_POOL_FULL_MESSAGE )
+			{
+				BufferString<1000> Debug;
+				Debug << "Frame pool is full (" << GetAllocatedCount() << ")";
+				Unity::DebugLog( Debug );
+			}
 		}
 	}
 	
+	//	set outgoing owner name
+	if ( FreeFrame )
+		FreeFrame->mDebugOwner = Owner;
 
 	return FreeFrame;
 }
 
 bool TFramePool::Free(TFramePixels* pFrame)
 {
+	if ( !pFrame )
+		return false;
+
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock lock( mFrameMutex );
 
 	bool Removed = false;
 
-	//	find index and mark as no-longer in use
-	for ( int p=0;	p<(int)mPool.size();	p++ )
+	//	find in used pool
+	int UsedIndex = mUsedPool.FindIndex( pFrame );
+	if ( UsedIndex == -1 )
 	{
-		auto* Entry = mPool[p];
-		if ( Entry != pFrame )
-			continue;
-		assert( mPoolUsed[p] );
-		mPoolUsed[p] = false;
-		Removed = true;
+		//	missing from pool
+		assert( UsedIndex != -1 );
+		return false;
 	}
+	
+	//	put into free pool
+	pFrame->mDebugOwner = "TFramePool - free";
+	mFreePool.PushBackUnique( pFrame );
 
-	assert( Removed );
-	return Removed;
+	return true;
 }
 
 
 
 
-TFramePixels::TFramePixels(TFrameMeta Meta) :
-	mMeta	( Meta )
+TFramePixels::TFramePixels(TFrameMeta Meta,const char* Owner) :
+	mMeta		( Meta ),
+	mDebugOwner	( Owner )
 {
 	mPixels.SetSize( mMeta.mWidth * mMeta.mHeight * mMeta.mChannels );
 }

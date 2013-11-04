@@ -97,9 +97,9 @@ public class FastVideo : MonoBehaviour
 		//	start decoding to texture
 		//System.String Filename = "C:\\Users\\RWD Artist\\Desktop\\RWD_Lexus_4k_recut.ogv";
 		//System.String Filename = "D:\\PopTrack\\data\\hands___\\hands1__.mov";
-        System.String Filename = "D:\\bike 4096-2048.mov";
+        //System.String Filename = "D:\\bike 4096-2048.mov";
         //System.String Filename = "D:\\bike 4000-2000.mov";
-		SetVideo( Filename );
+		//SetVideo( Filename );
 		
 		
 		

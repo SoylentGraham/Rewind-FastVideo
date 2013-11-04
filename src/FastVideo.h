@@ -5,10 +5,15 @@
 #include "UnityDevice.h"
 #include "TFrame.h"
 
-#define DEFAULT_MAX_POOL_SIZE		30
-#define DEFAULT_MAX_FRAME_BUFFERS	4
-//#define ENABLE_DEBUG_FRAME
+#define DEFAULT_MAX_POOL_SIZE		4
+#define DEFAULT_MAX_FRAME_BUFFERS	(DEFAULT_MAX_POOL_SIZE-2)
 
+//#define ENABLE_DECODER_INIT_SIZE_FRAME		TColour(0,255,0,255)
+#define ENABLE_FAILED_DECODER_INIT_FRAME	TColour(255,0,0,255)
+
+static bool SKIP_PAST_FRAMES	= true;
+static bool STORE_PAST_FRAMES	= true;
+static bool SHOW_POOL_FULL_MESSAGE	=	true;
 class TFastTexture;
 
 

@@ -2,15 +2,35 @@
 #include <d3d11.h>
 
 
+
+
+
+const char* TFastVideoState::ToString(TFastVideoState::Type State)
+{
+	switch ( State )
+	{
+	case TFastVideoState::FirstFrame:	return "FirstFrame";
+	case TFastVideoState::Playing:		return "Playing";
+	case TFastVideoState::Paused:		return "Paused";
+	default:							return "Unknown state type";
+	}
+}
+
+
+
 TFastTexture::TFastTexture(SoyRef Ref,TFramePool& FramePool) :
 	mRef			( Ref ),
+	mFrameBuffer	( DEFAULT_MAX_FRAME_BUFFERS, FramePool ),
 	mFramePool		( FramePool ),
-	mState			( TFastVideoState::Playing )
+	mState			( TFastVideoState::FirstFrame )
 {
 }
 
 TFastTexture::~TFastTexture()
 {
+	//	wait for render to finish
+	ofMutex::ScopedLock Lock( mRenderLock );
+
 	DeleteTargetTexture();
 	DeleteDynamicTexture();
 	DeleteDecoderThread();
@@ -19,6 +39,15 @@ TFastTexture::~TFastTexture()
 void TFastTexture::SetState(TFastVideoState::Type State)
 {
 	mState = State;
+
+	if ( mState == TFastVideoState::FirstFrame )
+	{
+		SetFrameTime( SoyTime() );
+	}
+
+	BufferString<100> Debug;
+	Debug << GetRef() << " " << TFastVideoState::ToString(State);
+	Unity::DebugLog( Debug );
 }
 
 	
@@ -128,21 +157,40 @@ bool TFastTexture::SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& 
 
 bool TFastTexture::SetVideo(const std::wstring& Filename,TUnityDevice_DX11& Device)
 {
-	//	resume video if paused
-	SetState( TFastVideoState::Playing );
+	//	reset video state
+	SetState( TFastVideoState::FirstFrame );
+	SetFrameTime( SoyTime() );
 
 	DeleteDecoderThread();
 
 	//	 alloc new decoder thread
 	TDecodeParams Params;
 	Params.mFilename = Filename;
-	Params.mMaxFrameBuffers = DEFAULT_MAX_FRAME_BUFFERS;
-	mDecoderThread = ofPtr<TDecodeThread>( new TDecodeThread( Params, mFramePool ) );
+	mDecoderThread = ofPtr<TDecodeThread>( new TDecodeThread( Params, mFrameBuffer, mFramePool ) );
 
 	//	do initial init, will verify filename, dimensions, etc
 	if ( !mDecoderThread->Init() )
 	{
 		DeleteDecoderThread();
+				
+#if defined(ENABLE_FAILED_DECODER_INIT_FRAME)
+		//	push a red "BAD" frame
+		TFrameMeta TextureFormat = Device.GetTextureMeta( mDynamicTexture );
+		TFramePixels* Frame = mFramePool.Alloc( TextureFormat, "Debug failed init" );
+		if ( Frame )
+		{
+			Unity::DebugLog( BufferString<100>()<<"Pushing Debug ERROR Frame; " << __FUNCTION__ );
+			Frame->SetColour( ENABLE_FAILED_DECODER_INIT_FRAME );
+			mFrameBuffer.PushFrame( Frame );	
+		}
+		else
+		{
+			BufferString<100> Debug;
+			Debug << "failed to alloc debug Init frame";
+			Unity::DebugLog( Debug );
+		}
+#endif
+
 		return false;
 	}
 
@@ -158,25 +206,33 @@ bool TFastTexture::SetVideo(const std::wstring& Filename,TUnityDevice_DX11& Devi
 
 void TFastTexture::OnPostRender(TUnityDevice_DX11& Device)
 {
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
+	ofMutex::ScopedLock RenderLock(mRenderLock);
+
 	//	push latest frame to texture
-	//	check we're running
-	if ( !mDecoderThread || !mTargetTexture )
+	if ( !mTargetTexture )
 		return;
 
-	//	might need to setup dynamic texture
+	//	might need to setup dynamic texture still
 	if ( !CreateDynamicTexture(Device) )
 		return;
 
-	//	if paused, don't push new frames
-	if ( mState == TFastVideoState::Paused )
-		return;
-
-	//	peek to see if we have some video
-	if ( !mDecoderThread->HasVideoToPop() )
+	//	pop latest frame (this takes ownership)
+	SoyTime FrameTime = GetFrameTime();
+	TFramePixels* pFrame = mFrameBuffer.PopFrame( FrameTime );
+	if ( !pFrame )
 	{
-		//Unity::DebugLog("Waiting for frame...");
+		static bool ShowWaitingMessage = false;
+		if ( ShowWaitingMessage )
+		{
+			BufferString<100> Debug;
+			Debug << "Frame not decoded yet; " << FrameTime;
+			Unity::DebugLog( Debug );
+		}
 		return;
 	}
+	pFrame->SetOwner( __FUNCTION__ );
+	OnRenderedFrame( FrameTime );
 
 	//	get context
 	auto& Device11 = Device.GetDevice();
@@ -184,6 +240,9 @@ void TFastTexture::OnPostRender(TUnityDevice_DX11& Device)
 	Device11.GetImmediateContext( &ctx.mObject );
 	if ( !ctx )
 	{
+		//	free frame
+		mFramePool.Free( pFrame );
+
 		Unity::DebugLog("Failed to get device context");
 		return;
 	}
@@ -192,17 +251,11 @@ void TFastTexture::OnPostRender(TUnityDevice_DX11& Device)
 	mTargetTexture->GetDesc(&TargetDesc);
 	D3D11_TEXTURE2D_DESC SrcDesc;
 	mDynamicTexture->GetDesc(&SrcDesc);
-
-	//	pop latest frame (this takes ownership)
-	TFramePixels* pFrame = mDecoderThread->PopFrame();
-	if ( !pFrame )
-	{
-		Unity::DebugLog("Missing decoded frame");
-		return;
-	}
+	
 
 	//	update our dynamic texture
 	{
+		ofScopeTimerWarning MapTimer("DX::Map copy",2);
 		D3D11_MAPPED_SUBRESOURCE resource;
 		int SubResource = 0;
 		int flags = 0;
@@ -217,7 +270,6 @@ void TFastTexture::OnPostRender(TUnityDevice_DX11& Device)
 		}
 
 		int ResourceDataSize = resource.RowPitch * SrcDesc.Height;//	width in bytes
-
 		if ( pFrame->GetDataSize() != ResourceDataSize )
 		{
 			BufferString<1000> Debug;
@@ -233,9 +285,84 @@ void TFastTexture::OnPostRender(TUnityDevice_DX11& Device)
 
 	//	copy to real texture (gpu->gpu)
 	//	gr: this will fail if dimensions/format different
-	ctx->CopyResource( mTargetTexture, mDynamicTexture );
+	{
+		//ofScopeTimerWarning MapTimer("DX::copy resource",2);
+		ctx->CopyResource( mTargetTexture, mDynamicTexture );
+	}
 
 	//	free frame
 	mFramePool.Free( pFrame );
+}
+
+SoyTime TFastTexture::GetFrameTime()
+{
+	UpdateFrameTime();
+
+	ofMutex::ScopedLock lockb( mFrame );
+	return mFrame.Get();
+}
+
+void TFastTexture::OnRenderedFrame(SoyTime Timestamp)
+{
+	if ( mState == TFastVideoState::FirstFrame )
+	{
+		mState = TFastVideoState::Playing;
+		SetFrameTime( Timestamp );
+	}
+}
+
+
+void TFastTexture::UpdateFrameTime()
+{
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
+	ofMutex::ScopedLock locka( mLastUpdateTime );
+	//	get step
+	SoyTime Now(true);
+	auto Step = Now.GetTime() - mLastUpdateTime.Get().GetTime();
+	if ( Step <= 0 )
+		return;
+
+	//	set the last-update-time regardless
+	mLastUpdateTime.Get() = Now;
+	
+	//	if we're paused, dont move frame time on
+	if ( mState == TFastVideoState::Paused )
+		return;
+
+	//	if we're waiting for the first frame, we don't step until we've rendered it
+	if ( mState == TFastVideoState::FirstFrame )
+		return;
+	
+	ofMutex::ScopedLock lockb( mFrame );
+	mFrame.Get() = SoyTime( mFrame.GetTime() + Step );
+
+	if ( mDecoderThread )
+	{
+		mDecoderThread->SetMinTimestamp( mFrame );
+	}
+	/*
+	BufferString<100> Debug;
+	Debug << "Framestep: " << Step << "ms";
+	Unity::DebugLog( Debug );
+	*/
+}
+
+
+void TFastTexture::SetFrameTime(SoyTime Frame)
+{
+	ofMutex::ScopedLock locka( mLastUpdateTime );
+	ofMutex::ScopedLock lockb( mFrame );
+
+	mFrame.Get() = Frame;
+	mLastUpdateTime.Get() = SoyTime(true);
+
+	if ( mDecoderThread )
+	{
+		mDecoderThread->SetMinTimestamp( mFrame );
+	}
+
+	BufferString<100> Debug;
+	Debug << "Set frametime: " << mFrame.Get();
+	Unity::DebugLog( Debug );
 }
 

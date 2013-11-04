@@ -19,7 +19,6 @@ extern "C"
 #include <libavutil/samplefmt.h>
 #include <libavutil/samplefmt.h>
 #include <libswscale/swscale.h>
-
 };
 #pragma comment(lib,"avcodec.lib")
 #pragma comment(lib,"avfilter.lib")
@@ -32,8 +31,8 @@ extern "C"
 
 class TFramePool;
 
-#if defined(ENABLE_DECODER)
 
+#if defined(ENABLE_DECODER)
 class TPacket 
 {
 public:
@@ -67,17 +66,28 @@ public:
 class TDecodeParams
 {
 public:
-	TDecodeParams() :
-		mMaxFrameBuffers	( 1 )
-	{
-	}
-
-public:
 	std::wstring	mFilename;
-	int				mMaxFrameBuffers;
 };
 
 
+class TFrameBuffer
+{
+public:
+	TFrameBuffer(int MaxFrameBufferSize,TFramePool& FramePool);
+	~TFrameBuffer();
+
+	bool						IsFull();
+	TFramePixels*				PopFrame(SoyTime Frame);
+	bool						HasVideoToPop();
+	void						PushFrame(TFramePixels* pFrame);
+	void						ReleaseFrames();
+
+public:
+	int							mMaxFrameBufferSize;
+	TFramePool&					mFramePool;
+	ofMutex						mFrameMutex;
+	Array<TFramePixels*>		mFrameBuffers;	//	frame's we've read and ready to be popped
+};
 
 
 class TVideoMeta
@@ -97,14 +107,17 @@ public:
 	TVideoMeta		GetVideoMeta()		{	return mVideoMeta;	}
 	TFrameMeta		GetFrameMeta()		{	return GetVideoMeta().mFrameMeta;	}
 	bool			PeekNextFrame(TFrameMeta& FrameMeta);
-	bool			DecodeNextFrame(TFramePixels& OutFrame);
+	bool			DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
 
 private:
+#if defined(ENABLE_DECODER)
 	bool			DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& Packet,std::shared_ptr<AVFrame>& Frame,int& DataOffset);
+#endif
 
 public:
 	TVideoMeta							mVideoMeta;
 
+#if defined(ENABLE_DECODER)
 	std::shared_ptr<AVFormatContext>	mContext;
 	std::shared_ptr<AVCodecContext>		mCodec;
 	std::vector<uint8_t>				mCodecContextExtraData;
@@ -113,6 +126,7 @@ public:
 	AVStream*							mVideoStream;	//	gr: change to index!
 	int									mDataOffset;
 	SwsContext*							mScaleContext;
+#endif
 };
 
 
@@ -122,32 +136,30 @@ public:
 	static const int		INVALID_FRAME = -1;
 
 public:
-	TDecodeThread(TDecodeParams& Params,TFramePool& FramePool);
+	TDecodeThread(TDecodeParams& Params,TFrameBuffer& FrameBuffer,TFramePool& FramePool);
 	~TDecodeThread();
 
 	bool						Init();				//	do initial load and start thread
 	TFrameMeta					GetVideoFrameMeta()		{	return mDecoder.GetFrameMeta();	}
 	TFrameMeta					GetDecodedFrameMeta();
 	void						SetDecodedFrameMeta(TFrameMeta Format);
-	TFramePixels*				PopFrame();
-	bool						HasVideoToPop();
 	bool						IsFinishedDecoding()	{	return mFinishedDecoding;	}
+	SoyTime						GetMinTimestamp();
+	void						SetMinTimestamp(SoyTime Timestamp);
 
 protected:
 	virtual void				threadedFunction();
 	bool						DecodeNextFrame();
-	void						PushFrame(TFramePixels* pFrame);
-	void						ReleaseFrames();
 
 protected:
 	ofMutexT<TFrameMeta>		mDecodeFormat;
 	bool						mFinishedDecoding;
 	TFramePool&					mFramePool;
 	TDecoder					mDecoder;
-	ofMutex						mFrameMutex;
-	int							mFrameCount;
-	Array<TFramePixels*>		mFrameBuffers;	//	frame's we've read and ready to be popped
+	TFrameBuffer&				mFrameBuffer;
 	TDecodeParams				mParams;
+
+	ofMutexT<SoyTime>			mMinTimestamp;	//	skip decoding frames before this time
 };
 
 

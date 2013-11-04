@@ -64,7 +64,7 @@ public:
 class TFramePixels
 {
 public:
-	TFramePixels(TFrameMeta Meta);
+	TFramePixels(TFrameMeta Meta,const char* Owner=nullptr);
 
 	void					SetColour(const TColour& Colour);
 	unsigned char*			GetData()			{	return mPixels.GetArray();	}
@@ -73,11 +73,13 @@ public:
 	int						GetPitch() const	{	return sizeof(uint8) * mMeta.mWidth * mMeta.mChannels;	}
 	int						GetWidth() const	{	return mMeta.mWidth;	}
 	int						GetHeight() const	{	return mMeta.mHeight;	}
+	void					SetOwner(const char* Owner)	{	mDebugOwner = Owner;	}
 	
 public:
-	TFrameMeta		mMeta;
-	Array<uint8>	mPixels;
-	float			mTimestamp;	//	in secs from 0
+	BufferString<100>	mDebugOwner;		//	current owner
+	TFrameMeta			mMeta;
+	Array<uint8>		mPixels;
+	SoyTime				mTimestamp;	//	frame since 0 
 };
 
 
@@ -88,13 +90,19 @@ class TFramePool
 public:
 	TFramePool(int MaxPoolSize);
 
-	TFramePixels*	Alloc(TFrameMeta FrameMeta);	//	increase pool size
+	TFramePixels*	Alloc(TFrameMeta FrameMeta,const char* Owner);	//	increase pool size
 	bool			Free(TFramePixels* pFrame);
+	bool			IsEmpty();						//	no used slots
+
+	void			DebugUsedFrames();
+
+private:
+	int				GetAllocatedCount();
 
 protected:
 	int							mPoolMaxSize;
 	ofMutex						mFrameMutex;
-	std::vector<TFramePixels*>	mPool;		//	
-	std::vector<bool>			mPoolUsed;	//	per-frame buffer to say if entry is in use
+	Array<TFramePixels*>		mUsedPool;
+	Array<TFramePixels*>		mFreePool;
 };
 

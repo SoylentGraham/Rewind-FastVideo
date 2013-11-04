@@ -13,9 +13,12 @@ namespace TFastVideoState
 {
 	enum Type
 	{
-		Playing=0,
+		FirstFrame=0,
+		Playing,
 		Paused,
 	};
+
+	const char*	ToString(Type State);
 };
 
 //	instance of a video texture
@@ -27,11 +30,15 @@ public:
 
 	SoyRef				GetRef() const			{	return mRef;	}
 
+	void				OnRenderedFrame(SoyTime Timestamp);
 	void				OnPostRender(TUnityDevice_DX11& Device);	//	callback from unity render thread
 
 	bool				SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& Device);
 	bool				SetVideo(const std::wstring& Filename,TUnityDevice_DX11& Device);
 	void				SetState(TFastVideoState::Type State);
+
+	SoyTime				GetFrameTime();
+	void				SetFrameTime(SoyTime Time);
 
 private:
 	bool				CreateDynamicTexture(TUnityDevice_DX11& Device);
@@ -40,9 +47,14 @@ private:
 	void				DeleteDynamicTexture();
 	void				DeleteDecoderThread();
 
-private:
-	TFastVideoState::Type	mState;
+	void				UpdateFrameTime();
 
+private:
+	ofMutex					mRenderLock;		//	lock while rendering (from a different thread) so we don't deallocate mid-render
+	TFastVideoState::Type	mState;
+	ofMutexT<SoyTime>		mFrame;
+	ofMutexT<SoyTime>		mLastUpdateTime;
+	TFrameBuffer			mFrameBuffer;
 	SoyRef					mRef;
 
 	TFramePool&						mFramePool;
