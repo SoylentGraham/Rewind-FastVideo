@@ -137,12 +137,15 @@ public:
 
 	virtual bool		IsValid()	{	return true;	}
 	virtual TFrameMeta	GetTextureMeta(ID3D11Texture2D* Texture);
+	bool				CopyTexture(TAutoRelease<ID3D11Texture2D>& Texture,const TFramePixels& Frame,bool Blocking);
+	bool				CopyTexture(TAutoRelease<ID3D11Texture2D>& DstTexture,TAutoRelease<ID3D11Texture2D>& SrcTexture);
 
 	ID3D11Device&		GetDevice()		{	assert( mDevice );	return *mDevice;	}
 	
 	TAutoRelease<ID3D11Texture2D>	AllocTexture(TFrameMeta FrameMeta);
 
 private:
+	ofMutex						mContextLock;	//	DX11 context is not threadsafe
 	TAutoRelease<ID3D11Device>	mDevice;
 };
 

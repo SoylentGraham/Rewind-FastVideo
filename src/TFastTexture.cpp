@@ -34,6 +34,7 @@ TFastTexture::~TFastTexture()
 	DeleteTargetTexture();
 	DeleteDynamicTexture();
 	DeleteDecoderThread();
+	DeleteUploadThread();
 } 
 
 void TFastTexture::SetState(TFastVideoState::Type State)
@@ -58,6 +59,7 @@ void TFastTexture::DeleteTargetTexture()
 
 void TFastTexture::DeleteDynamicTexture()
 {
+	ofMutex::ScopedLock lock( mDynamicTextureLock );
 	mDynamicTexture.Release();
 
 	//	update decode-to-format
@@ -77,6 +79,28 @@ void TFastTexture::DeleteDecoderThread()
 	}
 }
 
+bool TFastTexture::CreateUploadThread(TUnityDevice_DX11& Device)
+{
+	if ( mUploadThread )
+		return true;
+
+	//	alloc new one
+	mUploadThread = ofPtr<TFastTextureUploadThread>( new TFastTextureUploadThread( *this, Device ) );
+	mUploadThread->startThread( true, true );
+	return true;
+}
+
+void TFastTexture::DeleteUploadThread()
+{
+	if ( mUploadThread )
+	{
+		mUploadThread->waitForThread();
+		mUploadThread.reset();
+	}
+	
+}
+
+
 bool TFastTexture::CreateDynamicTexture(TUnityDevice_DX11& Device)
 {
 	//	dynamic texture needs to be same size as target texture
@@ -89,6 +113,7 @@ bool TFastTexture::CreateDynamicTexture(TUnityDevice_DX11& Device)
 	auto TargetTextureMeta = Device.GetTextureMeta( mTargetTexture );
 
 	//	if dimensions are different, delete old one
+	ofMutex::ScopedLock lock( mDynamicTextureLock );
 	if ( mDynamicTexture )
 	{
 		auto CurrentTextureMeta = Device.GetTextureMeta( mDynamicTexture );
@@ -129,6 +154,7 @@ bool TFastTexture::CreateDynamicTexture(TUnityDevice_DX11& Device)
 		}
 	}
 
+	CreateUploadThread( Device );
 	return true;
 }
 
@@ -151,6 +177,7 @@ bool TFastTexture::SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& 
 
 	//	alloc dynamic texture
 	CreateDynamicTexture( Device );
+	CreateUploadThread( Device );
 	
 	return true;
 }
@@ -204,94 +231,63 @@ bool TFastTexture::SetVideo(const std::wstring& Filename,TUnityDevice_DX11& Devi
 	return true;
 }
 
-void TFastTexture::OnPostRender(TUnityDevice_DX11& Device)
+bool TFastTexture::UpdateDynamicTexture(TUnityDevice_DX11& Device)
 {
 	ofScopeTimerWarning Timer(__FUNCTION__,2);
-	ofMutex::ScopedLock RenderLock(mRenderLock);
 
 	//	push latest frame to texture
 	if ( !mTargetTexture )
-		return;
+		return false;
 
 	//	might need to setup dynamic texture still
 	if ( !CreateDynamicTexture(Device) )
-		return;
+		return false;
+
+	//	dynamic texture is in use
+	ofMutex::ScopedLock Lock( mDynamicTextureLock );
 
 	//	pop latest frame (this takes ownership)
 	SoyTime FrameTime = GetFrameTime();
 	TFramePixels* pFrame = mFrameBuffer.PopFrame( FrameTime );
 	if ( !pFrame )
-	{
-		static bool ShowWaitingMessage = false;
-		if ( ShowWaitingMessage )
-		{
-			BufferString<100> Debug;
-			Debug << "Frame not decoded yet; " << FrameTime;
-			Unity::DebugLog( Debug );
-		}
-		return;
-	}
-	pFrame->SetOwner( __FUNCTION__ );
-	OnRenderedFrame( FrameTime );
-
-	//	get context
-	auto& Device11 = Device.GetDevice();
-	TAutoRelease<ID3D11DeviceContext> ctx;
-	Device11.GetImmediateContext( &ctx.mObject );
-	if ( !ctx )
-	{
-		//	free frame
-		mFramePool.Free( pFrame );
-
-		Unity::DebugLog("Failed to get device context");
-		return;
-	}
-
-	D3D11_TEXTURE2D_DESC TargetDesc;
-	mTargetTexture->GetDesc(&TargetDesc);
-	D3D11_TEXTURE2D_DESC SrcDesc;
-	mDynamicTexture->GetDesc(&SrcDesc);
+		return false;
 	
-
-	//	update our dynamic texture
+	if ( !Device.CopyTexture( mDynamicTexture, *pFrame, false ) )
 	{
-		ofScopeTimerWarning MapTimer("DX::Map copy",2);
-		D3D11_MAPPED_SUBRESOURCE resource;
-		int SubResource = 0;
-		int flags = 0;
-		HRESULT hr = ctx->Map( mDynamicTexture, SubResource, D3D11_MAP_WRITE_DISCARD, flags, &resource);
-		if ( hr != S_OK )
-		{
-			BufferString<1000> Debug;
-			Debug << "Failed to get Map() for dynamic texture(" << SrcDesc.Width << "," << SrcDesc.Height << "); Error; " << hr;
-			Unity::DebugLog( Debug );
-			mFramePool.Free( pFrame );
-			return;
-		}
-
-		int ResourceDataSize = resource.RowPitch * SrcDesc.Height;//	width in bytes
-		if ( pFrame->GetDataSize() != ResourceDataSize )
-		{
-			BufferString<1000> Debug;
-			Debug << "Warning: resource/texture data size mismatch; " << pFrame->GetDataSize() << " (frame) vs " << ResourceDataSize << " (resource)";
-			Unity::DebugLog( Debug );
-			ResourceDataSize = ofMin( ResourceDataSize, pFrame->GetDataSize() );
-		}
-
-		//	update contents 
-		memcpy( resource.pData, pFrame->GetData(), ResourceDataSize );
-		ctx->Unmap( mDynamicTexture, SubResource);
+		mFrameBuffer.PushFrame( pFrame );
+		return false;
 	}
+	mDynamicTextureChanged = true;
 
-	//	copy to real texture (gpu->gpu)
-	//	gr: this will fail if dimensions/format different
-	{
-		//ofScopeTimerWarning MapTimer("DX::copy resource",2);
-		ctx->CopyResource( mTargetTexture, mDynamicTexture );
-	}
-
+	pFrame->SetOwner( __FUNCTION__ );
+	OnDynamicTextureChanged( FrameTime );
+	
 	//	free frame
 	mFramePool.Free( pFrame );
+
+
+	return true;
+}
+
+void TFastTexture::OnPostRender(TUnityDevice_DX11& Device)
+{
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
+	ofMutex::ScopedLock RenderLock(mRenderLock);
+
+	//	skip if dynamic texture is in use
+	//	gr: or dont? and stall unity?
+	ofMutex::ScopedLock Lock(mDynamicTextureLock);
+
+	//	no changes
+	if ( !mDynamicTextureChanged )
+		return;
+
+	//	copy to GPU for usage
+	if ( !Device.CopyTexture( mTargetTexture, mDynamicTexture ) )
+		return;
+	mDynamicTextureChanged = false;
+
+	return;
 }
 
 SoyTime TFastTexture::GetFrameTime()
@@ -302,7 +298,7 @@ SoyTime TFastTexture::GetFrameTime()
 	return mFrame.Get();
 }
 
-void TFastTexture::OnRenderedFrame(SoyTime Timestamp)
+void TFastTexture::OnDynamicTextureChanged(SoyTime Timestamp)
 {
 	if ( mState == TFastVideoState::FirstFrame )
 	{
@@ -364,5 +360,18 @@ void TFastTexture::SetFrameTime(SoyTime Frame)
 	BufferString<100> Debug;
 	Debug << "Set frametime: " << mFrame.Get();
 	Unity::DebugLog( Debug );
+}
+
+
+
+void TFastTextureUploadThread::threadedFunction()
+{
+	while ( isThreadRunning() )
+	{
+		sleep(1);
+
+		//	update texture
+		mParent.UpdateDynamicTexture( mDevice );
+	}
 }
 

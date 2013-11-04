@@ -121,3 +121,89 @@ BufferString<100> Unity::TGfxDevice::ToString(Unity::TGfxDevice::Type DeviceType
 	}
 }
 
+
+bool TUnityDevice_DX11::CopyTexture(TAutoRelease<ID3D11Texture2D>& Texture,const TFramePixels& Frame,bool Blocking)
+{
+	if ( !Texture )
+		return false;
+
+	auto& Device11 = GetDevice();
+
+	ofMutex::ScopedLock ContextLock( mContextLock );
+	TAutoRelease<ID3D11DeviceContext> ctx;
+	Device11.GetImmediateContext( &ctx.mObject );
+	if ( !ctx )
+	{
+		Unity::DebugLog("Failed to get device context");
+		return false;
+	}
+
+	//	update our dynamic texture
+	{
+		ofScopeTimerWarning MapTimer("DX::Map copy",2);
+	
+		D3D11_TEXTURE2D_DESC SrcDesc;
+		Texture->GetDesc(&SrcDesc);
+
+		D3D11_MAPPED_SUBRESOURCE resource;
+		int SubResource = 0;
+		int flags = Blocking ? D3D11_MAP_FLAG_DO_NOT_WAIT : 0x0;
+		HRESULT hr = ctx->Map( Texture, SubResource, D3D11_MAP_WRITE_DISCARD, flags, &resource);
+
+		//	specified do not block, and GPU is using the texture
+		if ( !Blocking && hr == DXGI_ERROR_WAS_STILL_DRAWING )
+			return false;
+
+		//	other error
+		if ( hr != S_OK )
+		{
+			BufferString<1000> Debug;
+			Debug << "Failed to get Map() for dynamic texture(" << SrcDesc.Width << "," << SrcDesc.Height << "); Error; " << hr;
+			Unity::DebugLog( Debug );
+			return false;
+		}
+
+		int ResourceDataSize = resource.RowPitch * SrcDesc.Height;//	width in bytes
+		if ( Frame.GetDataSize() != ResourceDataSize )
+		{
+			BufferString<1000> Debug;
+			Debug << "Warning: resource/texture data size mismatch; " << Frame.GetDataSize() << " (frame) vs " << ResourceDataSize << " (resource)";
+			Unity::DebugLog( Debug );
+			ResourceDataSize = ofMin( ResourceDataSize, Frame.GetDataSize() );
+		}
+
+		//	update contents 
+		memcpy( resource.pData, Frame.GetData(), ResourceDataSize );
+		ctx->Unmap( Texture, SubResource);
+	}
+
+	return true;
+}
+
+bool TUnityDevice_DX11::CopyTexture(TAutoRelease<ID3D11Texture2D>& DstTexture,TAutoRelease<ID3D11Texture2D>& SrcTexture)
+{
+	if ( !DstTexture || !SrcTexture )
+		return false;
+
+	auto& Device11 = GetDevice();
+
+	ofMutex::ScopedLock ContextLock( mContextLock );
+	TAutoRelease<ID3D11DeviceContext> ctx;
+	Device11.GetImmediateContext( &ctx.mObject );
+	if ( !ctx )
+	{
+		Unity::DebugLog("Failed to get device context");
+		return false;
+	}	
+	
+	//	copy to real texture (gpu->gpu)
+	//	gr: this will fail silently if dimensions/format different
+	{
+		//ofScopeTimerWarning MapTimer("DX::copy resource",2);
+		ctx->CopyResource( DstTexture, SrcTexture );
+	}
+
+	return true;
+}
+
+
