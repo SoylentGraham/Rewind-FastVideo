@@ -8,6 +8,16 @@
 interface ID3D11Texture2D;
 class TUnityDevice_DX11;
 
+
+namespace TFastVideoState
+{
+	enum Type
+	{
+		Playing=0,
+		Paused,
+	};
+};
+
 //	instance of a video texture
 class TFastTexture
 {
@@ -21,6 +31,7 @@ public:
 
 	bool				SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& Device);
 	bool				SetVideo(const std::wstring& Filename,TUnityDevice_DX11& Device);
+	void				SetState(TFastVideoState::Type State);
 
 private:
 	bool				CreateDynamicTexture(TUnityDevice_DX11& Device);
@@ -30,10 +41,13 @@ private:
 	void				DeleteDecoderThread();
 
 private:
-	TFramePool&				mFramePool;
+	TFastVideoState::Type	mState;
+
+	SoyRef					mRef;
+
+	TFramePool&						mFramePool;
 	TAutoRelease<ID3D11Texture2D>	mDynamicTexture;
 	TAutoRelease<ID3D11Texture2D>	mTargetTexture;
-	SoyRef					mRef;
-	ofPtr<TDecodeThread>	mDecoderThread;
+	ofPtr<TDecodeThread>			mDecoderThread;
 };
 

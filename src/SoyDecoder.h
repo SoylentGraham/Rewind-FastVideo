@@ -137,6 +137,7 @@ protected:
 	virtual void				threadedFunction();
 	bool						DecodeNextFrame();
 	void						PushFrame(TFramePixels* pFrame);
+	void						ReleaseFrames();
 
 protected:
 	ofMutexT<TFrameMeta>		mDecodeFormat;
@@ -145,7 +146,7 @@ protected:
 	TDecoder					mDecoder;
 	ofMutex						mFrameMutex;
 	int							mFrameCount;
-	Array<TFramePixels*>		mFrameBuffers;	//	frame buffer
+	Array<TFramePixels*>		mFrameBuffers;	//	frame's we've read and ready to be popped
 	TDecodeParams				mParams;
 };
 

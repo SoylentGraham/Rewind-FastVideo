@@ -35,7 +35,6 @@ public:
 
 	TYPE*		operator ->()	{	return mObject;	}
 	operator	TYPE*()			{	return mObject;	}
-	operator	bool() const	{	return mObject!=NULL;	}
 
 	void		Set(TYPE* Object,bool AddRef)
 	{
@@ -91,6 +90,7 @@ namespace Unity
 			OpenGLES20Desktop,   // OpenGL ES 2.0 desktop variant (i.e. NaCl)
 			Count
 		};
+		BufferString<100>	ToString(Type DeviceType);
 	};
 
 
@@ -108,6 +108,13 @@ namespace Unity
 
 	ofPtr<TUnityDevice_DX11>	AllocDevice(Unity::TGfxDevice::Type Type,void* Device);
 };
+
+template<class STRING>
+inline STRING& operator<<(STRING& str,const Unity::TGfxDevice::Type& Value)
+{
+	str << Unity::TGfxDevice::ToString( Value );
+	return str;
+}
 
 
 

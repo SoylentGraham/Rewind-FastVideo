@@ -21,7 +21,7 @@ TFastVideo gFastVideo;
 
 TFastVideo::TFastVideo() :
 	mFramePool			( DEFAULT_MAX_POOL_SIZE ),
-	mNextInstanceRef	( "FastTexture" )
+	mNextInstanceRef	( "FastTxture" )
 {
 }
 
@@ -38,6 +38,9 @@ SoyRef TFastVideo::AllocInstance()
 	mNextInstanceRef++;
 	
 	mInstances.PushBack( pInstance );
+
+	Unity::DebugLog( BufferString<100>() << "Allocated instance: " << pInstance->GetRef() );
+
 	return pInstance->GetRef();
 }
 
@@ -46,11 +49,15 @@ bool TFastVideo::FreeInstance(SoyRef InstanceRef)
 	ofMutex::ScopedLock Lock( mInstancesLock );
 	int Index = FindInstanceIndex( InstanceRef );
 	if ( Index < 0 )
+	{
+		Unity::DebugLog( BufferString<100>() << "Failed to find instance: " << InstanceRef );
 		return false;
+	}
 
 	auto* pInstance = mInstances[Index];
 	mInstances.RemoveBlock( Index, 1 );
 	delete pInstance;
+	Unity::DebugLog( BufferString<100>() << "Free'd instance: " << InstanceRef );
 	return true;
 }
 
@@ -99,6 +106,9 @@ bool TFastVideo::AllocDevice(Unity::TGfxDevice::Type DeviceType,void* Device)
 
 	//	alloc new one
 	mDevice = Unity::AllocDevice( DeviceType, Device );
+
+	if ( !mDevice )
+		Unity::DebugLog(BufferString<1000>() <<"Failed to allocated device " << DeviceType );
 
 	return mDevice!=nullptr;
 }
@@ -156,7 +166,7 @@ extern "C" EXPORT_API bool SetVideo(Unity::ulong Instance,const wchar_t* pFilena
 extern "C" void EXPORT_API SetDebugLogFunction(Unity::TDebugLogFunc pFunc)
 {
 	Unity::gDebugFunc = pFunc;
-	Unity::DebugLog("Test");
+	Unity::DebugLog("FastVideo debug-log initialised okay");
 }
 
 // Prints a string
@@ -215,3 +225,22 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID)
 
 }
 
+extern "C" EXPORT_API bool Pause(Unity::ulong Instance)
+{
+	auto* pInstance = gFastVideo.FindInstance( SoyRef(Instance) );
+	if ( !pInstance )
+		return false;
+	
+	pInstance->SetState( TFastVideoState::Paused );
+	return true;
+}
+
+extern "C" EXPORT_API bool Resume(Unity::ulong Instance)
+{
+	auto* pInstance = gFastVideo.FindInstance( SoyRef(Instance) );
+	if ( !pInstance )
+		return false;
+	
+	pInstance->SetState( TFastVideoState::Playing );
+	return true;
+}

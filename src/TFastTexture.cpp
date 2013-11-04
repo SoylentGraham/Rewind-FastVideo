@@ -4,7 +4,8 @@
 
 TFastTexture::TFastTexture(SoyRef Ref,TFramePool& FramePool) :
 	mRef			( Ref ),
-	mFramePool		( FramePool )
+	mFramePool		( FramePool ),
+	mState			( TFastVideoState::Playing )
 {
 }
 
@@ -14,6 +15,12 @@ TFastTexture::~TFastTexture()
 	DeleteDynamicTexture();
 	DeleteDecoderThread();
 } 
+
+void TFastTexture::SetState(TFastVideoState::Type State)
+{
+	mState = State;
+}
+
 	
 void TFastTexture::DeleteTargetTexture()
 {
@@ -63,6 +70,7 @@ bool TFastTexture::CreateDynamicTexture(TUnityDevice_DX11& Device)
 	}
 
 	//	need to create a new one
+	bool HadTexure = (mDynamicTexture!=nullptr);
 	if ( !mDynamicTexture )
 	{
 		mDynamicTexture = Device.AllocTexture( TargetTextureMeta );
@@ -70,6 +78,10 @@ bool TFastTexture::CreateDynamicTexture(TUnityDevice_DX11& Device)
 
 	if ( !mDynamicTexture )
 	{
+		BufferString<100> Debug;
+		Debug << "Failed to alloc dynamic texture; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.mChannels;
+		Unity::DebugLog( Debug );
+
 		DeleteDynamicTexture();
 		return false;
 	}
@@ -79,6 +91,13 @@ bool TFastTexture::CreateDynamicTexture(TUnityDevice_DX11& Device)
 	{
 		TFrameMeta TextureFormat = Device.GetTextureMeta( mDynamicTexture );
 		mDecoderThread->SetDecodedFrameMeta( TextureFormat );
+
+		if ( !HadTexure )
+		{
+			BufferString<100> Debug;
+			Debug << "Allocated dynamic texture, set decoded meta; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.mChannels;
+			Unity::DebugLog( Debug );
+		}
 	}
 
 	return true;
@@ -92,6 +111,13 @@ bool TFastTexture::SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& 
 	//	free existing dynamic texture if size/format difference
 	DeleteDynamicTexture();
 
+	{
+		auto TextureMeta = Device.GetTextureMeta( TargetTexture );
+		BufferString<100> Debug;
+		Debug << "Assigned target texture; " << TextureMeta.mWidth << "x" << TextureMeta.mHeight << "x" << TextureMeta.mChannels;
+		Unity::DebugLog( Debug );
+	}
+
 	mTargetTexture.Set( TargetTexture, true );
 
 	//	alloc dynamic texture
@@ -102,6 +128,9 @@ bool TFastTexture::SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& 
 
 bool TFastTexture::SetVideo(const std::wstring& Filename,TUnityDevice_DX11& Device)
 {
+	//	resume video if paused
+	SetState( TFastVideoState::Playing );
+
 	DeleteDecoderThread();
 
 	//	 alloc new decoder thread
@@ -136,6 +165,10 @@ void TFastTexture::OnPostRender(TUnityDevice_DX11& Device)
 
 	//	might need to setup dynamic texture
 	if ( !CreateDynamicTexture(Device) )
+		return;
+
+	//	if paused, don't push new frames
+	if ( mState == TFastVideoState::Paused )
 		return;
 
 	//	peek to see if we have some video

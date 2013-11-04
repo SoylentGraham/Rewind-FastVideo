@@ -5,8 +5,9 @@
 #include "UnityDevice.h"
 #include "TFrame.h"
 
-#define DEFAULT_MAX_POOL_SIZE		10
+#define DEFAULT_MAX_POOL_SIZE		30
 #define DEFAULT_MAX_FRAME_BUFFERS	4
+//#define ENABLE_DEBUG_FRAME
 
 class TFastTexture;
 
@@ -63,6 +64,8 @@ extern "C" EXPORT_API Unity::ulong	AllocInstance();
 extern "C" EXPORT_API bool			FreeInstance(Unity::ulong Instance);
 extern "C" EXPORT_API bool			SetTexture(Unity::ulong Instance,void* Texture);
 extern "C" EXPORT_API bool			SetVideo(Unity::ulong Instance,const wchar_t* Filename,int Length);
+extern "C" EXPORT_API bool			Pause(Unity::ulong Instance);
+extern "C" EXPORT_API bool			Resume(Unity::ulong Instance);
 
 //	http://www.gamedev.net/page/resources/_/technical/game-programming/c-plugin-debug-log-with-unity-r3349
 //	gr: call this in unity to tell us where to DebugLog() to

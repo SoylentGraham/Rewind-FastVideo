@@ -100,3 +100,24 @@ TFrameMeta TUnityDevice_DX11::GetTextureMeta(ID3D11Texture2D* Texture)
 	return TextureMeta;
 }
 
+BufferString<100> Unity::TGfxDevice::ToString(Unity::TGfxDevice::Type DeviceType)
+{
+	switch ( DeviceType )
+	{
+		case Invalid:			return "Invalid";
+		case OpenGL:			return "OpenGL";
+		case D3D9:				return "D3D9";
+		case D3D11:				return "D3D11";
+		case GCM:				return "GCM";
+		case Null:				return "null";
+		case Hollywood:			return "Hollywood/Wii";
+		case Xenon:				return "Xenon/xbox 360";
+		case OpenGLES:			return "OpenGL ES 1.1";
+		case OpenGLES20Mobile:	return "OpenGL ES 2.0 mobile";
+		case Molehill:			return "Molehill/Flash 11";
+		case OpenGLES20Desktop:	return "OpenGL ES 2.0 desktop/NaCL";
+		default:
+			return BufferString<100>()<<"Unknown device " << static_cast<int>(DeviceType);
+	}
+}
+

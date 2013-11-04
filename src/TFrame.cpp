@@ -110,3 +110,10 @@ TFramePixels::TFramePixels(TFrameMeta Meta) :
 	mPixels.SetSize( mMeta.mWidth * mMeta.mHeight * mMeta.mChannels );
 }
 
+void TFramePixels::SetColour(const TColour& Colour)
+{
+	for ( int i=0;	i<mPixels.GetSize();	i+=mMeta.mChannels )
+	{
+		memcpy( &mPixels[i], &Colour, mMeta.mChannels );
+	}
+}

@@ -66,6 +66,7 @@ class TFramePixels
 public:
 	TFramePixels(TFrameMeta Meta);
 
+	void					SetColour(const TColour& Colour);
 	unsigned char*			GetData()			{	return mPixels.GetArray();	}
 	const unsigned char*	GetData() const		{	return mPixels.GetArray();	}
 	int						GetDataSize() const	{	return mPixels.GetDataSize();	}

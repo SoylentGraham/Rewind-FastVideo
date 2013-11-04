@@ -73,24 +73,47 @@ TDecodeThread::TDecodeThread(TDecodeParams& Params,TFramePool& FramePool) :
 	mParams				( Params ),
 	mFinishedDecoding	( false )
 {
+	Unity::DebugLog(__FUNCTION__);
 }
 
 TDecodeThread::~TDecodeThread()
 {
+	ofScopeTimerWarning Timer( __FUNCTION__, 1 );
+
+	Unity::DebugLog("~TDecodeThread release frames");
+	ReleaseFrames();
+
+	Unity::DebugLog("~TDecodeThread WaitForThread");
 	waitForThread();
+
+	Unity::DebugLog("~TDecodeThread finished");
 }
+
 
 bool TDecodeThread::Init()
 {
+	Unity::DebugLog( __FUNCTION__ );
+
 	//	init decoder
 	if ( !mDecoder.Init(mParams.mFilename.c_str()) )
 		return false;
 
-	//	todo: check video params are valid
-
-	//	start thread
-	startThread(true,true);
+	Unity::DebugLog("TDecodeThread - starting thread");
+	startThread( true, true );
+	Unity::DebugLog("TDecodeThread - starting thread OK");
 	return true;
+}
+
+void TDecodeThread::ReleaseFrames()
+{
+	ofMutex::ScopedLock lock( mFrameMutex );
+
+	//	free frames back to pool
+	for ( int i=mFrameBuffers.GetSize()-1;	i>=0;	i-- )
+	{
+		auto Frame = mFrameBuffers.PopAt(i);
+		mFramePool.Free( Frame );
+	}
 }
 
 bool TDecodeThread::HasVideoToPop()
@@ -153,7 +176,31 @@ TFrameMeta TDecodeThread::GetDecodedFrameMeta()
 void TDecodeThread::SetDecodedFrameMeta(TFrameMeta Format)
 {
 	ofMutex::ScopedLock lock( mDecodeFormat );
+
+	//	no change
+	if ( mDecodeFormat.Get() == Format )
+		return;
+
+	//	update
 	mDecodeFormat.Get() = Format;
+
+#if defined(ENABLE_DEBUG_FRAME)
+	//	push a green "OK" frame
+	TFramePixels* Frame = mFramePool.Alloc( GetDecodedFrameMeta() );
+	if ( Frame )
+	{
+		Unity::DebugLog( BufferString<100>()<<"Pushing Debug Frame; " << __FUNCTION__ );
+		Frame->SetColour( TColour(0,255,0,255) );
+		PushFrame( Frame );	
+	}
+	else
+	{
+		BufferString<100> Debug;
+		Debug << "failed to alloc debug Init frame";
+		Unity::DebugLog( Debug );
+	}
+#endif
+
 }
 
 bool TDecodeThread::DecodeNextFrame()
