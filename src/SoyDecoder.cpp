@@ -476,10 +476,10 @@ bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimestamp,bo
 	if ( OutputFrame.mTimestamp < mLastDecodedTimestamp )
 	{
 		BufferString<100> Debug;
-		Debug << (DECODER_SKIP_OO_FRAMES?"Skipped":"Decoded") << " out-of-order frames " << mLastDecodedTimestamp << " ... " << OutputFrame.mTimestamp;
+		Debug << (DECODER_SKIP_OOO_FRAMES?"Skipped":"Decoded") << " out-of-order frames " << mLastDecodedTimestamp << " ... " << OutputFrame.mTimestamp;
 		Unity::DebugLog( Debug );
 
-		if ( DECODER_SKIP_OO_FRAMES )
+		if ( DECODER_SKIP_OOO_FRAMES )
 		{
 			TryAgain = true;
 			return false;

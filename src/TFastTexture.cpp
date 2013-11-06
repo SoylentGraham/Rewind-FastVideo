@@ -128,16 +128,26 @@ bool TFastTexture::CreateDynamicTexture(TUnityDevice_DX11& Device)
 	if ( !mDynamicTexture )
 	{
 		mDynamicTexture = Device.AllocTexture( TargetTextureMeta );
-	}
+		if ( !mDynamicTexture )
+		{
+			BufferString<100> Debug;
+			Debug << "Failed to alloc dynamic texture; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.mChannels;
+			Unity::DebugLog( Debug );
 
-	if ( !mDynamicTexture )
-	{
-		BufferString<100> Debug;
-		Debug << "Failed to alloc dynamic texture; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.mChannels;
-		Unity::DebugLog( Debug );
+			DeleteDynamicTexture();
+			return false;
+		}
 
-		DeleteDynamicTexture();
-		return false;
+		//	initialise texture contents
+#if defined(ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR)
+		auto* Frame = mFramePool.Alloc( TargetTextureMeta, "ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR" );
+		if ( Frame )
+		{
+			Frame->SetColour( ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR );
+			Device.CopyTexture( mDynamicTexture, *Frame, true );
+			mFramePool.Free( Frame );
+		}
+#endif
 	}
 
 	//	update decode-to-format
@@ -247,11 +257,12 @@ bool TFastTexture::UpdateDynamicTexture(TUnityDevice_DX11& Device)
 	if ( !CreateDynamicTexture(Device) )
 		return false;
 
-	ofMutex::ScopedLock Lock( mDynamicTextureLock );
-
-	//	last one hasnt been used yet
-	if ( mDynamicTextureChanged )
-		return true;
+	{
+		ofMutex::ScopedLock Lock( mDynamicTextureLock );
+		//	last one hasnt been used yet
+		if ( mDynamicTextureChanged )
+			return true;
+	}
 
 	//	pop latest frame (this takes ownership)
 	SoyTime FrameTime = GetFrameTime();
@@ -261,13 +272,14 @@ bool TFastTexture::UpdateDynamicTexture(TUnityDevice_DX11& Device)
 	
 	bool Copy = true;
 
+	ofMutex::ScopedLock Lock( mDynamicTextureLock );
 	if ( pFrame->mTimestamp < mDynamicTextureFrame )
 	{
 		BufferString<100> Debug;
 		Debug << "New dynamic texture frame ("<< pFrame->mTimestamp << ") BEHIND current frame (" << mDynamicTextureFrame << ")";
 		Unity::DebugLog( Debug );
 
-		if ( DYNAMIC_SKIP_OO_FRAMES )
+		if ( DYNAMIC_SKIP_OOO_FRAMES )
 			Copy = false;
 	}
 
@@ -308,11 +320,26 @@ void TFastTexture::OnPostRender(TUnityDevice_DX11& Device)
 	//	gr: or dont? and stall unity?
 	ofMutex::ScopedLock Lock(mDynamicTextureLock);
 
-#if !defined(ALWAYS_COPY_DYNAMIC_TO_TARGET)
-	//	no changes
-	if ( !mDynamicTextureChanged )
-		return;
-#endif
+	if ( !ALWAYS_COPY_DYNAMIC_TO_TARGET )
+	{
+		//	no changes
+		if ( !mDynamicTextureChanged )
+			return;
+	}
+
+	if ( DEBUG_RENDER_LAG )
+	{
+		auto Now = GetFrameTime();
+		auto Lag = Now.GetTime() - mDynamicTextureFrame.GetTime();
+		static int MinLag = 1;
+		if ( Now.IsValid() && Lag >= MinLag )
+		{
+			BufferString<100> Debug;
+			Debug << "Rendering " << Lag << "ms behind";
+			Unity::DebugLog( Debug );
+		}
+	}
+
 
 	//	copy to GPU for usage
 	if ( !Device.CopyTexture( mTargetTexture, mDynamicTexture ) )
@@ -347,6 +374,8 @@ void TFastTexture::UpdateFrameTime()
 	//	get step
 	SoyTime Now(true);
 	auto Step = Now.GetTime() - mLastUpdateTime.Get().GetTime();
+	float Stepf = static_cast<float>( Step ) * REAL_TIME_MODIFIER;
+	Step = static_cast<uint64>( Stepf );
 	if ( Step <= 0 )
 		return;
 
@@ -378,6 +407,7 @@ void TFastTexture::UpdateFrameTime()
 
 void TFastTexture::SetFrameTime(SoyTime Frame)
 {
+	ofMutex::ScopedLock lockc( mDynamicTextureLock );	//	to avoid deadlock this has to be done first
 	ofMutex::ScopedLock locka( mLastUpdateTime );
 	ofMutex::ScopedLock lockb( mFrame );
 
@@ -388,6 +418,9 @@ void TFastTexture::SetFrameTime(SoyTime Frame)
 	{
 		mDecoderThread->SetMinTimestamp( mFrame );
 	}
+
+	mDynamicTextureFrame = Frame;	//	-1?
+
 
 	BufferString<100> Debug;
 	Debug << "Set frametime: " << mFrame.Get();
