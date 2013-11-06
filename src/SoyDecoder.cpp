@@ -12,8 +12,8 @@ public:
 		auto Framea = a->mTimestamp;
 		auto Frameb = b->mTimestamp;
 
-		if ( a < b ) return -1;
-		if ( a > b ) return 1;
+		if ( Framea < Frameb ) return -1;
+		if ( Framea > Frameb ) return 1;
 		return 0;
 	}
 };
@@ -175,6 +175,9 @@ TFramePixels* TFrameBuffer::PopFrame(SoyTime Timestamp)
 	ofScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock lock( mFrameMutex );
 
+	if ( mFrameBuffers.GetSize() < FORCE_BUFFER_FRAME_COUNT )
+		return nullptr;
+
 	//	work out next frame we want to use
 	int PopFrameIndex = -1;
 
@@ -200,11 +203,17 @@ TFramePixels* TFrameBuffer::PopFrame(SoyTime Timestamp)
 		Debug << "Skipping " << SkipCount << " frames";
 		Unity::DebugLog( Debug );
 
+
 		//	pop & release the first X frames we're going to skip
 		for ( int i=0;	i<SkipCount;	i++ )
 		{
-			auto* FrameBuffer = mFrameBuffers.PopAt(0);
-			mFramePool.Free( FrameBuffer );
+			auto* Frame = mFrameBuffers.PopAt(0);
+			
+			BufferString<100> Debug;
+			Debug << "Frame " << Frame->mTimestamp << " skipped";
+			ofLogNotice( Debug.c_str() );
+
+			mFramePool.Free( Frame );
 			PopFrameIndex--;
 		}
 		assert( PopFrameIndex == 0 );
@@ -326,6 +335,11 @@ bool TDecodeThread::DecodeNextFrame()
 		}
 	}
 
+	/*
+	BufferString<100> Debug;
+	Debug << Frame->mTimestamp << " decoded -> framebuffer";
+	Unity::DebugLog( Debug );
+	*/
 	mFrameBuffer.PushFrame( Frame );
 
 	return true;
@@ -441,12 +455,38 @@ bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimestamp,bo
 	double FrameRate = av_q2d( mVideoStream->r_frame_rate );
 	//	avoid /zero
 	FrameRate = ofMax(1.0/60.0,1.0/FrameRate);
-	double TimeBase = av_q2d( mVideoStream->time_base );
-	auto PresentationTimestamp = mFrame->pts;
-	double Timestamp = mFrame->pts * TimeBase;
-	double TimeSecs = Timestamp * FrameRate;
-	double TimeMs = TimeSecs * 1000.f;
-	OutputFrame.mTimestamp = SoyTime( static_cast<uint64>(TimeMs) );
+
+	if ( USE_REAL_TIMESTAMP )
+	{
+		double TimeBase = av_q2d( mVideoStream->time_base );
+		auto PresentationTimestamp = mFrame->pts;
+		double Timestamp = mFrame->pts * TimeBase;
+		double TimeSecs = Timestamp * FrameRate;
+		double TimeMs = TimeSecs * 1000.f;
+		OutputFrame.mTimestamp = SoyTime( static_cast<uint64>(TimeMs) );
+	}
+	else
+	{
+		uint64 Step = static_cast<uint64>( 1.f / FrameRate );
+		mFakeRunningTimestamp += Step;
+		OutputFrame.mTimestamp = SoyTime( mFakeRunningTimestamp );
+	}
+	
+	//	checking for out-of-order frames
+	if ( OutputFrame.mTimestamp < mLastDecodedTimestamp )
+	{
+		BufferString<100> Debug;
+		Debug << (DECODER_SKIP_OO_FRAMES?"Skipped":"Decoded") << " out-of-order frames " << mLastDecodedTimestamp << " ... " << OutputFrame.mTimestamp;
+		Unity::DebugLog( Debug );
+
+		if ( DECODER_SKIP_OO_FRAMES )
+		{
+			TryAgain = true;
+			return false;
+		}
+	}
+	mLastDecodedTimestamp = OutputFrame.mTimestamp;
+	
 
 	//	too far behind, skip it
 	if ( OutputFrame.mTimestamp < MinTimestamp && MinTimestamp.IsValid() && !STORE_PAST_FRAMES )
@@ -455,7 +495,7 @@ bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimestamp,bo
 		Debug << "Decoded frame " << OutputFrame.mTimestamp << " too far behind " << MinTimestamp;
 		Unity::DebugLog( Debug );
 		TryAgain = true;
-		return true;
+		return false;
 	}
 
 	//	gr: avpicture takes no time (just filling a struct?)

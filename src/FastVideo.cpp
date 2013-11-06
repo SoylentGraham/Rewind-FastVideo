@@ -180,9 +180,7 @@ extern "C" void EXPORT_API SetDebugLogFunction(Unity::TDebugLogFunc pFunc)
 // Prints a string
 void Unity::DebugLog(const char* str)
 {
-	static bool EnableDebugLog = false;
-	if ( !EnableDebugLog )
-		return;
+	static bool EnableDebugLog = true;
 
 	//	print out to visual studio debugger
 	ofLogNotice(str);

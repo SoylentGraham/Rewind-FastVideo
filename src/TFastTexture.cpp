@@ -179,6 +179,10 @@ bool TFastTexture::SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& 
 	CreateDynamicTexture( Device );
 	CreateUploadThread( Device );
 	
+	//	pre-alloc pool
+	TFrameMeta FrameMeta = Device.GetTextureMeta( mTargetTexture );
+	mFramePool.PreAlloc( FrameMeta );
+
 	return true;
 }
 
@@ -243,8 +247,11 @@ bool TFastTexture::UpdateDynamicTexture(TUnityDevice_DX11& Device)
 	if ( !CreateDynamicTexture(Device) )
 		return false;
 
-	//	dynamic texture is in use
 	ofMutex::ScopedLock Lock( mDynamicTextureLock );
+
+	//	last one hasnt been used yet
+	if ( mDynamicTextureChanged )
+		return true;
 
 	//	pop latest frame (this takes ownership)
 	SoyTime FrameTime = GetFrameTime();
@@ -252,16 +259,39 @@ bool TFastTexture::UpdateDynamicTexture(TUnityDevice_DX11& Device)
 	if ( !pFrame )
 		return false;
 	
-	if ( !Device.CopyTexture( mDynamicTexture, *pFrame, false ) )
+	bool Copy = true;
+
+	if ( pFrame->mTimestamp < mDynamicTextureFrame )
 	{
-		mFrameBuffer.PushFrame( pFrame );
-		return false;
+		BufferString<100> Debug;
+		Debug << "New dynamic texture frame ("<< pFrame->mTimestamp << ") BEHIND current frame (" << mDynamicTextureFrame << ")";
+		Unity::DebugLog( Debug );
+
+		if ( DYNAMIC_SKIP_OO_FRAMES )
+			Copy = false;
 	}
-	mDynamicTextureChanged = true;
+
+	if ( Copy )
+	{
+		if ( !Device.CopyTexture( mDynamicTexture, *pFrame, false ) )
+		{
+			mFrameBuffer.PushFrame( pFrame );
+			return false;
+		}
+
+		mDynamicTextureChanged = true;
+		mDynamicTextureFrame = pFrame->mTimestamp;
+	}
 
 	pFrame->SetOwner( __FUNCTION__ );
 	OnDynamicTextureChanged( FrameTime );
 	
+	/*
+	BufferString<100> Debug;
+	Debug << "Frame " << pFrame->mTimestamp << " Buffer -> Dynamic";
+	ofLogNotice( Debug.c_str() );
+	*/
+
 	//	free frame
 	mFramePool.Free( pFrame );
 
@@ -278,9 +308,11 @@ void TFastTexture::OnPostRender(TUnityDevice_DX11& Device)
 	//	gr: or dont? and stall unity?
 	ofMutex::ScopedLock Lock(mDynamicTextureLock);
 
+#if !defined(ALWAYS_COPY_DYNAMIC_TO_TARGET)
 	//	no changes
 	if ( !mDynamicTextureChanged )
 		return;
+#endif
 
 	//	copy to GPU for usage
 	if ( !Device.CopyTexture( mTargetTexture, mDynamicTexture ) )

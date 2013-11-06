@@ -82,6 +82,7 @@ private:
 
 	ofMutex							mDynamicTextureLock;
 	TAutoRelease<ID3D11Texture2D>	mDynamicTexture;
+	SoyTime							mDynamicTextureFrame;	//	frame in current dynamic texture
 	bool							mDynamicTextureChanged;	//	locked via mDynamicTextureLock
 
 	TAutoRelease<ID3D11Texture2D>	mTargetTexture;

@@ -96,13 +96,15 @@ public:
 
 	void			DebugUsedFrames();
 
+	void			PreAlloc(TFrameMeta FrameMeta);	//	allocate all the frames if we havent already
+
 private:
 	int				GetAllocatedCount();
 
 protected:
 	int							mPoolMaxSize;
-	ofMutex						mFrameMutex;
+	ofMutex						mPoolLock;
 	Array<TFramePixels*>		mUsedPool;
 	Array<TFramePixels*>		mFreePool;
 };
-
+DECLARE_NONCOMPLEX_NO_CONSTRUCT_TYPE( TFramePixels* );

@@ -28,7 +28,7 @@ TFramePool::TFramePool(int MaxPoolSize) :
 	
 void TFramePool::DebugUsedFrames()
 {
-	ofMutex::ScopedLock lock( mFrameMutex );
+	ofMutex::ScopedLock lock( mPoolLock );
 
 	for ( int i=0;	i<mUsedPool.GetSize();	i++ )
 	{
@@ -43,7 +43,7 @@ void TFramePool::DebugUsedFrames()
 
 bool TFramePool::IsEmpty()
 {
-	ofMutex::ScopedLock lock( mFrameMutex );
+	ofMutex::ScopedLock lock( mPoolLock );
 
 	int UsedSlots = mUsedPool.GetSize();
 	return (UsedSlots==0);
@@ -54,14 +54,43 @@ int TFramePool::GetAllocatedCount()
 	return mFreePool.GetSize() + mUsedPool.GetSize();
 }
 
+void TFramePool::PreAlloc(TFrameMeta FrameMeta)
+{
+	if ( !FrameMeta.IsValid() )
+		return;
+
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
+	ofMutex::ScopedLock lock( mPoolLock );
+
+	//	already allocated some
+	if ( GetAllocatedCount() > 0 )
+		return;
+
+	//	alloc X frames
+	mFreePool.Reserve( mPoolMaxSize );
+	for ( int i=0;	i<mPoolMaxSize;	i++ )
+	{
+		TFramePixels* Frame = new TFramePixels( FrameMeta, "TFramePool - pre-alloc" );
+		if ( !Frame )
+		{
+			assert( Frame );
+			return;
+		}
+		mFreePool.PushBack( Frame );
+	}
+}
+
+
 TFramePixels* TFramePool::Alloc(TFrameMeta FrameMeta,const char* Owner)
 {
 	//	can't alloc invalid frame 
 	if ( !FrameMeta.IsValid() )
 		return nullptr;
 
+	PreAlloc( FrameMeta );
+
 	ofScopeTimerWarning Timer(__FUNCTION__,2);
-	ofMutex::ScopedLock lock( mFrameMutex );
+	ofMutex::ScopedLock lock( mPoolLock );
 
 	//	any free?
 	TFramePixels* FreeFrame = NULL;
@@ -69,6 +98,7 @@ TFramePixels* TFramePool::Alloc(TFrameMeta FrameMeta,const char* Owner)
 	if ( !mFreePool.IsEmpty() )
 	{
 		FreeFrame = mFreePool.PopBack();
+		mUsedPool.PushBack( FreeFrame );
 	}
 	else
 	{
@@ -106,7 +136,7 @@ bool TFramePool::Free(TFramePixels* pFrame)
 		return false;
 
 	ofScopeTimerWarning Timer(__FUNCTION__,2);
-	ofMutex::ScopedLock lock( mFrameMutex );
+	ofMutex::ScopedLock lock( mPoolLock );
 
 	bool Removed = false;
 
@@ -121,7 +151,8 @@ bool TFramePool::Free(TFramePixels* pFrame)
 	
 	//	put into free pool
 	pFrame->mDebugOwner = "TFramePool - free";
-	mFreePool.PushBackUnique( pFrame );
+	mFreePool.PushBack( pFrame );
+	mUsedPool.RemoveBlock( UsedIndex, 1 );
 
 	return true;
 }

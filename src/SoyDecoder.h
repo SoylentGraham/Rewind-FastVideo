@@ -116,6 +116,10 @@ private:
 
 public:
 	TVideoMeta							mVideoMeta;
+	SoyTime								mLastDecodedTimestamp;
+#if defined(USE_REAL_TIMESTAMP)
+	SoyTime								mFakeRunningTimestamp;
+#endif
 
 #if defined(ENABLE_DECODER)
 	std::shared_ptr<AVFormatContext>	mContext;
