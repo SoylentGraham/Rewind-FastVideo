@@ -125,6 +125,15 @@
     <ClInclude Include="..\..\ofxSoylent\src\SoyTypes.h" />
     <ClInclude Include="..\..\ofxSoylent\src\String.hpp" />
     <ClInclude Include="FastVideo.h" />
+    <ClInclude Include="ffmpeg\include\libavcodec\avcodec.h" />
+    <ClInclude Include="ffmpeg\include\libavcodec\avfft.h" />
+    <ClInclude Include="ffmpeg\include\libavcodec\dxva2.h" />
+    <ClInclude Include="ffmpeg\include\libavcodec\old_codec_ids.h" />
+    <ClInclude Include="ffmpeg\include\libavcodec\vaapi.h" />
+    <ClInclude Include="ffmpeg\include\libavcodec\vda.h" />
+    <ClInclude Include="ffmpeg\include\libavcodec\vdpau.h" />
+    <ClInclude Include="ffmpeg\include\libavcodec\version.h" />
+    <ClInclude Include="ffmpeg\include\libavcodec\xvmc.h" />
     <ClInclude Include="SoyDecoder.h" />
     <ClInclude Include="TFastTexture.h" />
     <ClInclude Include="TFrame.h" />

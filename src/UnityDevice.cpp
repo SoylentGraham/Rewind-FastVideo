@@ -5,26 +5,28 @@
 
 DXGI_FORMAT GetFormat(TFrameMeta Meta)
 {
-	if ( Meta.mChannels == 4 )
+	switch ( Meta.mFormat )
+	{
+	case TFrameFormat::RGBA:
 		return DXGI_FORMAT_R8G8B8A8_UNORM;
 
-	//	24 bit not supported
-	if ( Meta.mChannels == 3 )
+	case TFrameFormat::RGB:		//	24 bit not supported
+	default:
 		return DXGI_FORMAT_UNKNOWN;
-
-	return DXGI_FORMAT_UNKNOWN;
+	}
 }
 
-int GetChannels(DXGI_FORMAT Format)
+TFrameFormat::Type GetFormat(DXGI_FORMAT Format)
 {
 	//	return 0 if none supported
 	switch ( Format )
 	{
 	case DXGI_FORMAT_R8G8B8A8_UNORM:
-		return 4;
-	};
+		return TFrameFormat::RGBA;
 
-	return 0;
+	default:
+		return TFrameFormat::Invalid;
+	};
 }
 	
 ofPtr<TUnityDevice_DX11> Unity::AllocDevice(Unity::TGfxDevice::Type Type,void* Device)
@@ -95,8 +97,8 @@ TFrameMeta TUnityDevice_DX11::GetTextureMeta(ID3D11Texture2D* Texture)
 	D3D11_TEXTURE2D_DESC Desc;
 	Texture->GetDesc( &Desc );
 
-	int Channels = GetChannels( Desc.Format );
-	TFrameMeta TextureMeta( Desc.Width, Desc.Height, Channels );
+	auto Format = GetFormat( Desc.Format );
+	TFrameMeta TextureMeta( Desc.Width, Desc.Height, Format );
 	return TextureMeta;
 }
 

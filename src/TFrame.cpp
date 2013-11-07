@@ -2,6 +2,20 @@
 #include "FastVideo.h"
 
 
+int TFrameFormat::GetChannels(TFrameFormat::Type Format)
+{
+	switch ( Format )
+	{
+	case TFrameFormat::RGB:		return 3;
+	case TFrameFormat::RGBA:	return 4;
+	case TFrameFormat::YUV:		return 3;
+	case TFrameFormat::Invalid:
+	default:
+		return 0;
+	}
+}
+
+
 bool TFrameMeta::IsEqualSize(const TFrameMeta& that) const
 {
 	return (mWidth == that.mWidth) &&
@@ -10,12 +24,12 @@ bool TFrameMeta::IsEqualSize(const TFrameMeta& that) const
 
 bool TFrameMeta::operator==(const TFrameMeta& that) const
 {
-	return IsEqualSize(that) && (mChannels == that.mChannels);
+	return IsEqualSize(that) && (mFormat == that.mFormat);
 }
 
 bool TFrameMeta::operator!=(const TFrameMeta& that) const
 {
-	return !IsEqualSize(that) || (mChannels != that.mChannels);
+	return !IsEqualSize(that) || (mFormat != that.mFormat);
 }
 
 
@@ -164,13 +178,14 @@ TFramePixels::TFramePixels(TFrameMeta Meta,const char* Owner) :
 	mMeta		( Meta ),
 	mDebugOwner	( Owner )
 {
-	mPixels.SetSize( mMeta.mWidth * mMeta.mHeight * mMeta.mChannels );
+	mPixels.SetSize( mMeta.mWidth * mMeta.mHeight * mMeta.GetChannels() );
 }
 
 void TFramePixels::SetColour(const TColour& Colour)
 {
-	for ( int i=0;	i<mPixels.GetSize();	i+=mMeta.mChannels )
+	int Channels = mMeta.GetChannels();
+	for ( int i=0;	i<mPixels.GetSize();	i+=Channels )
 	{
-		memcpy( &mPixels[i], &Colour, mMeta.mChannels );
+		memcpy( &mPixels[i], &Colour, Channels );
 	}
 }

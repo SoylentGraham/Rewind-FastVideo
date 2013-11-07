@@ -90,6 +90,33 @@
     <ClInclude Include="TFrame.h">
       <Filter>Src</Filter>
     </ClInclude>
+    <ClInclude Include="ffmpeg\include\libavcodec\avcodec.h">
+      <Filter>libav</Filter>
+    </ClInclude>
+    <ClInclude Include="ffmpeg\include\libavcodec\avfft.h">
+      <Filter>libav</Filter>
+    </ClInclude>
+    <ClInclude Include="ffmpeg\include\libavcodec\dxva2.h">
+      <Filter>libav</Filter>
+    </ClInclude>
+    <ClInclude Include="ffmpeg\include\libavcodec\old_codec_ids.h">
+      <Filter>libav</Filter>
+    </ClInclude>
+    <ClInclude Include="ffmpeg\include\libavcodec\vaapi.h">
+      <Filter>libav</Filter>
+    </ClInclude>
+    <ClInclude Include="ffmpeg\include\libavcodec\vda.h">
+      <Filter>libav</Filter>
+    </ClInclude>
+    <ClInclude Include="ffmpeg\include\libavcodec\vdpau.h">
+      <Filter>libav</Filter>
+    </ClInclude>
+    <ClInclude Include="ffmpeg\include\libavcodec\version.h">
+      <Filter>libav</Filter>
+    </ClInclude>
+    <ClInclude Include="ffmpeg\include\libavcodec\xvmc.h">
+      <Filter>libav</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Script cs">
@@ -100,6 +127,9 @@
     </Filter>
     <Filter Include="ofxSoylent">
       <UniqueIdentifier>{78def9b5-bde0-4666-84f5-d88c4e666189}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="libav">
+      <UniqueIdentifier>{5943811c-6865-4b5a-bb9a-30339531a248}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

@@ -4,9 +4,13 @@
 
 
 
+#define ENABLE_DECODER_LIBAV
+//#define ENABLE_DVXA
+
+
+
 //	link to ffmpeg static lib (requires DLL)
-#define ENABLE_DECODER
-#if defined(ENABLE_DECODER)
+#if defined(ENABLE_DECODER_LIBAV)
 extern "C"
 {
 #include <libavutil/opt.h>
@@ -19,6 +23,7 @@ extern "C"
 #include <libavutil/samplefmt.h>
 #include <libavutil/samplefmt.h>
 #include <libswscale/swscale.h>
+#include <libavcodec/dxva2.h>
 };
 #pragma comment(lib,"avcodec.lib")
 #pragma comment(lib,"avfilter.lib")
@@ -32,7 +37,7 @@ extern "C"
 class TFramePool;
 
 
-#if defined(ENABLE_DECODER)
+#if defined(ENABLE_DECODER_LIBAV)
 class TPacket 
 {
 public:
@@ -90,6 +95,7 @@ public:
 };
 
 
+
 class TVideoMeta
 {
 public:
@@ -110,8 +116,13 @@ public:
 	bool			DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
 
 private:
-#if defined(ENABLE_DECODER)
+#if defined(ENABLE_DECODER_LIBAV)
 	bool			DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& Packet,std::shared_ptr<AVFrame>& Frame,int& DataOffset);
+#endif
+
+#if defined(ENABLE_DVXA)
+	bool			InitDxvaContext();
+	void			FreeDxvaContext();
 #endif
 
 public:
@@ -121,7 +132,7 @@ public:
 	SoyTime								mFakeRunningTimestamp;
 #endif
 
-#if defined(ENABLE_DECODER)
+#if defined(ENABLE_DECODER_LIBAV)
 	std::shared_ptr<AVFormatContext>	mContext;
 	std::shared_ptr<AVCodecContext>		mCodec;
 	std::vector<uint8_t>				mCodecContextExtraData;
@@ -130,6 +141,9 @@ public:
 	AVStream*							mVideoStream;	//	gr: change to index!
 	int									mDataOffset;
 	SwsContext*							mScaleContext;
+#endif
+#if defined(ENABLE_DVXA)
+	dxva_context						mDxvaContext;
 #endif
 };
 

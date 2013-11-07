@@ -131,7 +131,7 @@ bool TFastTexture::CreateDynamicTexture(TUnityDevice_DX11& Device)
 		if ( !mDynamicTexture )
 		{
 			BufferString<100> Debug;
-			Debug << "Failed to alloc dynamic texture; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.mChannels;
+			Debug << "Failed to alloc dynamic texture; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.GetChannels();
 			Unity::DebugLog( Debug );
 
 			DeleteDynamicTexture();
@@ -159,7 +159,7 @@ bool TFastTexture::CreateDynamicTexture(TUnityDevice_DX11& Device)
 		if ( !HadTexure )
 		{
 			BufferString<100> Debug;
-			Debug << "Allocated dynamic texture, set decoded meta; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.mChannels;
+			Debug << "Allocated dynamic texture, set decoded meta; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.GetChannels();
 			Unity::DebugLog( Debug );
 		}
 	}
@@ -179,7 +179,7 @@ bool TFastTexture::SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& 
 	{
 		auto TextureMeta = Device.GetTextureMeta( TargetTexture );
 		BufferString<100> Debug;
-		Debug << "Assigned target texture; " << TextureMeta.mWidth << "x" << TextureMeta.mHeight << "x" << TextureMeta.mChannels;
+		Debug << "Assigned target texture; " << TextureMeta.mWidth << "x" << TextureMeta.mHeight << "x" << TextureMeta.GetChannels();
 		Unity::DebugLog( Debug );
 	}
 

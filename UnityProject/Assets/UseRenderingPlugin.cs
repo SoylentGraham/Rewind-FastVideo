@@ -167,7 +167,10 @@ public class UseRenderingPlugin : FastVideo {
         if (Input.GetMouseButton(0))
         {
             //	change/restart video
-            System.String Filename = "D:\\bike 4096-2048.mov";
+           // System.String Filename = "D:\\bike 4096-2048.mov";
+            System.String Filename = "D:\\bike-x264.mpg";
+           // System.String Filename = "D:\\bike rgba.mpg";
+            
             SetVideo(Filename);
         }
         if (Input.GetMouseButton(1))

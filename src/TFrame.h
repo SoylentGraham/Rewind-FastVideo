@@ -3,6 +3,18 @@
 #include <ofxSoylent.h>
 #include <SoyThread.h>
 
+namespace TFrameFormat
+{
+	enum Type
+	{
+		Invalid,
+		RGB,
+		RGBA,
+		YUV,	//	4:2:2
+	};
+
+	int		GetChannels(Type Format);
+};
 
 class TFrameMeta
 {
@@ -10,27 +22,27 @@ public:
 	TFrameMeta() :
 		mWidth		( 0 ),
 		mHeight		( 0 ),
-		mChannels	( 0 )
+		mFormat	( TFrameFormat::Invalid )
 	{
 	}
 
-	TFrameMeta(int Width,int Height,int Channels) :
+	TFrameMeta(int Width,int Height,TFrameFormat::Type Format) :
 		mWidth		( ofMax(0,Width) ),
 		mHeight		( ofMax(0,Height) ),
-		mChannels	( ofMax(0,Channels) )
+		mFormat		( Format )
 	{
 	}
 
 	bool		IsEqualSize(const TFrameMeta& that) const;
-
-	bool		IsValid() const				{	return mWidth>0 && mHeight>0 && mChannels>0;	}
+	int			GetChannels() const			{	return TFrameFormat::GetChannels( mFormat );	}
+	bool		IsValid() const				{	return mWidth>0 && mHeight>0 && mFormat!=TFrameFormat::Invalid;	}
 	bool		operator==(const TFrameMeta& that) const;
 	bool		operator!=(const TFrameMeta& that) const;
 
 public:
-	int		mWidth;
-	int		mHeight;
-	int		mChannels;
+	int					mWidth;
+	int					mHeight;
+	TFrameFormat::Type	mFormat;
 };
 
 class TColour
@@ -70,7 +82,7 @@ public:
 	unsigned char*			GetData()			{	return mPixels.GetArray();	}
 	const unsigned char*	GetData() const		{	return mPixels.GetArray();	}
 	int						GetDataSize() const	{	return mPixels.GetDataSize();	}
-	int						GetPitch() const	{	return sizeof(uint8) * mMeta.mWidth * mMeta.mChannels;	}
+	int						GetPitch() const	{	return sizeof(uint8) * mMeta.mWidth * mMeta.GetChannels();	}
 	int						GetWidth() const	{	return mMeta.mWidth;	}
 	int						GetHeight() const	{	return mMeta.mHeight;	}
 	void					SetOwner(const char* Owner)	{	mDebugOwner = Owner;	}
