@@ -82,6 +82,8 @@
 			);
 			name = RenderingPlugin;
 			sourceTree = "<group>";
+			usesTabs = 1;
+			wrapsLines = 0;
 		};
 		089C1671FE841209C02AAC07 /* External Frameworks and Libraries */ = {
 			isa = PBXGroup;
