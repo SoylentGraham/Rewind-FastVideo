@@ -15,16 +15,8 @@
 		F5BB488118310ED30007BDCB /* TFrame.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB487A18310ED30007BDCB /* TFrame.cpp */; };
 		F5BB488218310ED30007BDCB /* UnityDevice.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB487C18310ED30007BDCB /* UnityDevice.cpp */; };
 		F5BB48C31831104B0007BDCB /* memheap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB48891831104B0007BDCB /* memheap.cpp */; };
-		F5BB48CE1831104B0007BDCB /* SoyApp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB48A11831104B0007BDCB /* SoyApp.cpp */; };
 		F5BB48CF1831104B0007BDCB /* SoyDebug.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB48A31831104B0007BDCB /* SoyDebug.cpp */; };
-		F5BB48D01831104B0007BDCB /* SoyMath.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB48A61831104B0007BDCB /* SoyMath.cpp */; };
-		F5BB48D11831104B0007BDCB /* SoyModule.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB48A81831104B0007BDCB /* SoyModule.cpp */; };
-		F5BB48D21831104B0007BDCB /* SoyNet.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB48AA1831104B0007BDCB /* SoyNet.cpp */; };
-		F5BB48D31831104B0007BDCB /* SoyOpenCl.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB48AC1831104B0007BDCB /* SoyOpenCl.cpp */; };
-		F5BB48D41831104B0007BDCB /* SoyPacket.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB48AE1831104B0007BDCB /* SoyPacket.cpp */; };
 		F5BB48D51831104B0007BDCB /* SoyRef.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB48B11831104B0007BDCB /* SoyRef.cpp */; };
-		F5BB48D61831104B0007BDCB /* SoyRender.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB48B31831104B0007BDCB /* SoyRender.cpp */; };
-		F5BB48D71831104B0007BDCB /* SoySocket.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB48B51831104B0007BDCB /* SoySocket.cpp */; };
 		F5BB48DA1831104B0007BDCB /* SoyThread.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB48BD1831104B0007BDCB /* SoyThread.cpp */; };
 		F5BB48DB1831104B0007BDCB /* SoyTypes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5BB48C01831104B0007BDCB /* SoyTypes.cpp */; };
 /* End PBXBuildFile section */
@@ -53,28 +45,11 @@
 		F5BB488A1831104B0007BDCB /* memheap.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = memheap.hpp; path = ../../ofxSoylent/src/memheap.hpp; sourceTree = "<group>"; };
 		F5BB489F1831104B0007BDCB /* ofxSoylent.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ofxSoylent.h; path = ../../ofxSoylent/src/ofxSoylent.h; sourceTree = "<group>"; };
 		F5BB48A01831104B0007BDCB /* SortArray.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SortArray.h; path = ../../ofxSoylent/src/SortArray.h; sourceTree = "<group>"; };
-		F5BB48A11831104B0007BDCB /* SoyApp.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SoyApp.cpp; path = ../../ofxSoylent/src/SoyApp.cpp; sourceTree = "<group>"; };
-		F5BB48A21831104B0007BDCB /* SoyApp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoyApp.h; path = ../../ofxSoylent/src/SoyApp.h; sourceTree = "<group>"; };
 		F5BB48A31831104B0007BDCB /* SoyDebug.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SoyDebug.cpp; path = ../../ofxSoylent/src/SoyDebug.cpp; sourceTree = "<group>"; };
 		F5BB48A41831104B0007BDCB /* SoyDebug.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoyDebug.h; path = ../../ofxSoylent/src/SoyDebug.h; sourceTree = "<group>"; };
-		F5BB48A51831104B0007BDCB /* SoyEnum.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoyEnum.h; path = ../../ofxSoylent/src/SoyEnum.h; sourceTree = "<group>"; };
-		F5BB48A61831104B0007BDCB /* SoyMath.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SoyMath.cpp; path = ../../ofxSoylent/src/SoyMath.cpp; sourceTree = "<group>"; };
-		F5BB48A71831104B0007BDCB /* SoyMath.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoyMath.h; path = ../../ofxSoylent/src/SoyMath.h; sourceTree = "<group>"; };
-		F5BB48A81831104B0007BDCB /* SoyModule.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SoyModule.cpp; path = ../../ofxSoylent/src/SoyModule.cpp; sourceTree = "<group>"; };
-		F5BB48A91831104B0007BDCB /* SoyModule.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoyModule.h; path = ../../ofxSoylent/src/SoyModule.h; sourceTree = "<group>"; };
-		F5BB48AA1831104B0007BDCB /* SoyNet.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SoyNet.cpp; path = ../../ofxSoylent/src/SoyNet.cpp; sourceTree = "<group>"; };
-		F5BB48AB1831104B0007BDCB /* SoyNet.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoyNet.h; path = ../../ofxSoylent/src/SoyNet.h; sourceTree = "<group>"; };
-		F5BB48AC1831104B0007BDCB /* SoyOpenCl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SoyOpenCl.cpp; path = ../../ofxSoylent/src/SoyOpenCl.cpp; sourceTree = "<group>"; };
-		F5BB48AD1831104B0007BDCB /* SoyOpenCl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoyOpenCl.h; path = ../../ofxSoylent/src/SoyOpenCl.h; sourceTree = "<group>"; };
-		F5BB48AE1831104B0007BDCB /* SoyPacket.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SoyPacket.cpp; path = ../../ofxSoylent/src/SoyPacket.cpp; sourceTree = "<group>"; };
-		F5BB48AF1831104B0007BDCB /* SoyPacket.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoyPacket.h; path = ../../ofxSoylent/src/SoyPacket.h; sourceTree = "<group>"; };
 		F5BB48B01831104B0007BDCB /* SoyPair.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoyPair.h; path = ../../ofxSoylent/src/SoyPair.h; sourceTree = "<group>"; };
 		F5BB48B11831104B0007BDCB /* SoyRef.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SoyRef.cpp; path = ../../ofxSoylent/src/SoyRef.cpp; sourceTree = "<group>"; };
 		F5BB48B21831104B0007BDCB /* SoyRef.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoyRef.h; path = ../../ofxSoylent/src/SoyRef.h; sourceTree = "<group>"; };
-		F5BB48B31831104B0007BDCB /* SoyRender.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SoyRender.cpp; path = ../../ofxSoylent/src/SoyRender.cpp; sourceTree = "<group>"; };
-		F5BB48B41831104B0007BDCB /* SoyRender.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoyRender.h; path = ../../ofxSoylent/src/SoyRender.h; sourceTree = "<group>"; };
-		F5BB48B51831104B0007BDCB /* SoySocket.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SoySocket.cpp; path = ../../ofxSoylent/src/SoySocket.cpp; sourceTree = "<group>"; };
-		F5BB48B61831104B0007BDCB /* SoySocket.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoySocket.h; path = ../../ofxSoylent/src/SoySocket.h; sourceTree = "<group>"; };
 		F5BB48BD1831104B0007BDCB /* SoyThread.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = SoyThread.cpp; path = ../../ofxSoylent/src/SoyThread.cpp; sourceTree = "<group>"; };
 		F5BB48BE1831104B0007BDCB /* SoyThread.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoyThread.h; path = ../../ofxSoylent/src/SoyThread.h; sourceTree = "<group>"; };
 		F5BB48BF1831104B0007BDCB /* SoyTime.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = SoyTime.h; path = ../../ofxSoylent/src/SoyTime.h; sourceTree = "<group>"; };
@@ -141,6 +116,7 @@
 			);
 			name = Source;
 			sourceTree = "<group>";
+			usesTabs = 1;
 		};
 		19C28FB6FE9D52B211CA2CBB /* Products */ = {
 			isa = PBXGroup;
@@ -162,28 +138,11 @@
 				F5BB488A1831104B0007BDCB /* memheap.hpp */,
 				F5BB489F1831104B0007BDCB /* ofxSoylent.h */,
 				F5BB48A01831104B0007BDCB /* SortArray.h */,
-				F5BB48A11831104B0007BDCB /* SoyApp.cpp */,
-				F5BB48A21831104B0007BDCB /* SoyApp.h */,
 				F5BB48A31831104B0007BDCB /* SoyDebug.cpp */,
 				F5BB48A41831104B0007BDCB /* SoyDebug.h */,
-				F5BB48A51831104B0007BDCB /* SoyEnum.h */,
-				F5BB48A61831104B0007BDCB /* SoyMath.cpp */,
-				F5BB48A71831104B0007BDCB /* SoyMath.h */,
-				F5BB48A81831104B0007BDCB /* SoyModule.cpp */,
-				F5BB48A91831104B0007BDCB /* SoyModule.h */,
-				F5BB48AA1831104B0007BDCB /* SoyNet.cpp */,
-				F5BB48AB1831104B0007BDCB /* SoyNet.h */,
-				F5BB48AC1831104B0007BDCB /* SoyOpenCl.cpp */,
-				F5BB48AD1831104B0007BDCB /* SoyOpenCl.h */,
-				F5BB48AE1831104B0007BDCB /* SoyPacket.cpp */,
-				F5BB48AF1831104B0007BDCB /* SoyPacket.h */,
 				F5BB48B01831104B0007BDCB /* SoyPair.h */,
 				F5BB48B11831104B0007BDCB /* SoyRef.cpp */,
 				F5BB48B21831104B0007BDCB /* SoyRef.h */,
-				F5BB48B31831104B0007BDCB /* SoyRender.cpp */,
-				F5BB48B41831104B0007BDCB /* SoyRender.h */,
-				F5BB48B51831104B0007BDCB /* SoySocket.cpp */,
-				F5BB48B61831104B0007BDCB /* SoySocket.h */,
 				F5BB48BD1831104B0007BDCB /* SoyThread.cpp */,
 				F5BB48BE1831104B0007BDCB /* SoyThread.h */,
 				F5BB48BF1831104B0007BDCB /* SoyTime.h */,
@@ -193,6 +152,7 @@
 			);
 			name = ofxSoylent;
 			sourceTree = "<group>";
+			usesTabs = 1;
 		};
 /* End PBXGroup section */
 
@@ -262,16 +222,8 @@
 				F5BB488118310ED30007BDCB /* TFrame.cpp in Sources */,
 				F5BB488218310ED30007BDCB /* UnityDevice.cpp in Sources */,
 				F5BB48C31831104B0007BDCB /* memheap.cpp in Sources */,
-				F5BB48CE1831104B0007BDCB /* SoyApp.cpp in Sources */,
 				F5BB48CF1831104B0007BDCB /* SoyDebug.cpp in Sources */,
-				F5BB48D01831104B0007BDCB /* SoyMath.cpp in Sources */,
-				F5BB48D11831104B0007BDCB /* SoyModule.cpp in Sources */,
-				F5BB48D21831104B0007BDCB /* SoyNet.cpp in Sources */,
-				F5BB48D31831104B0007BDCB /* SoyOpenCl.cpp in Sources */,
-				F5BB48D41831104B0007BDCB /* SoyPacket.cpp in Sources */,
 				F5BB48D51831104B0007BDCB /* SoyRef.cpp in Sources */,
-				F5BB48D61831104B0007BDCB /* SoyRender.cpp in Sources */,
-				F5BB48D71831104B0007BDCB /* SoySocket.cpp in Sources */,
 				F5BB48DA1831104B0007BDCB /* SoyThread.cpp in Sources */,
 				F5BB48DB1831104B0007BDCB /* SoyTypes.cpp in Sources */,
 			);
@@ -283,22 +235,16 @@
 		1DEB911B08733D790010E9CD /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
-				CLANG_CXX_LIBRARY = "libc++";
 				COPY_PHASE_STRIP = NO;
+				DEPLOYMENT_LOCATION = YES;
+				DEPLOYMENT_POSTPROCESSING = YES;
+				DSTROOT = "";
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					NO_OPENFRAMEWORKS,
-					TARGET_OSX,
-				);
-				HEADER_SEARCH_PATHS = ../../ofxSoylent/src;
 				INFOPLIST_FILE = Info.plist;
-				INSTALL_PATH = "$(HOME)/Library/Bundles";
-				MACOSX_DEPLOYMENT_TARGET = 10.7;
+				INSTALL_PATH = "$(SRCROOT)/../UnityProject/Assets/Plugins/";
 				PRODUCT_NAME = FastVideo;
 				WRAPPER_EXTENSION = bundle;
 			};
@@ -307,19 +253,13 @@
 		1DEB911C08733D790010E9CD /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
-				CLANG_CXX_LIBRARY = "libc++";
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEPLOYMENT_LOCATION = YES;
+				DEPLOYMENT_POSTPROCESSING = YES;
+				DSTROOT = "";
 				GCC_MODEL_TUNING = G5;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					NO_OPENFRAMEWORKS,
-					TARGET_OSX,
-				);
-				HEADER_SEARCH_PATHS = ../../ofxSoylent/src;
 				INFOPLIST_FILE = Info.plist;
-				INSTALL_PATH = "$(HOME)/Library/Bundles";
-				MACOSX_DEPLOYMENT_TARGET = 10.7;
+				INSTALL_PATH = "$(SRCROOT)/../UnityProject/Assets/Plugins/";
 				PRODUCT_NAME = FastVideo;
 				WRAPPER_EXTENSION = bundle;
 			};
@@ -329,11 +269,22 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
-				GCC_C_LANGUAGE_STANDARD = gnu99;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				GCC_C_LANGUAGE_STANDARD = c11;
 				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					NO_OPENFRAMEWORKS,
+					TARGET_OSX,
+				);
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.5;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					../../ofxSoylent/src,
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.7;
 				ONLY_ACTIVE_ARCH = YES;
 				PREBINDING = NO;
 				SDKROOT = macosx;
@@ -344,10 +295,21 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
-				GCC_C_LANGUAGE_STANDARD = gnu99;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				GCC_C_LANGUAGE_STANDARD = c11;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					NO_OPENFRAMEWORKS,
+					TARGET_OSX,
+				);
 				GCC_WARN_ABOUT_RETURN_TYPE = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.5;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					../../ofxSoylent/src,
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.7;
 				PREBINDING = NO;
 				SDKROOT = macosx;
 			};
