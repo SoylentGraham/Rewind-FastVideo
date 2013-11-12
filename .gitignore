@@ -227,3 +227,7 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
+
+src/FastVideo.xcodeproj/xcuserdata/plex.xcuserdatad/xcdebugger/Breakpoints_v2.xcbkptlist
+
+*.xcuserstate
