@@ -1,28 +1,52 @@
 #include "SoyDecoder.h"
+#include <SortArray.h>
+
+
+
+	
+class TSortPolicy_TFramePixelsByTimestamp
+{
+public:
+	static int		Compare(const TFramePixels* a,const TFramePixels* b)
+	{
+		auto Framea = a->mTimestamp;
+		auto Frameb = b->mTimestamp;
+
+		if ( Framea < Frameb ) return -1;
+		if ( Framea > Frameb ) return 1;
+		return 0;
+	}
+};
+
 
 
 BufferString<1000> GetAVError(int Error)
 {
+#if defined(ENABLE_DECODER_LIBAV)
 	char Buffer[1000];
-
 	if ( av_strerror( Error, Buffer, sizeof(Buffer)/sizeof(Buffer[0]) ) != 0 )
 	{
 		BufferString<1000> Debug;
 		Debug << "Unknown error: " << Error;
 		return Debug;
 	}
-
 	return Buffer;
+#else
+	return "AV not enabled";
+#endif
 }
 
+#if defined(ENABLE_DECODER_LIBAV)
 bool TPacket::reset(AVFormatContext* ctxt)
 {
+	//	gr: av_read_frame free's...
+	/*
 	if (packet.data)
 	{
 		av_free_packet(&packet);
 		packet.data = nullptr;
 	}
-
+	*/
 	auto err = av_read_frame(ctxt, &packet);
 	if ( err < 0 )
 	{
@@ -35,83 +59,168 @@ bool TPacket::reset(AVFormatContext* ctxt)
 	}
 	return true;
 }
+#endif
 
 
-int GetChannelCount(enum AVPixelFormat Format)
+#if defined(ENABLE_DECODER_LIBAV)
+TFrameFormat::Type GetFormat(enum AVPixelFormat Format)
 {
 	switch ( Format )
 	{
-	case AV_PIX_FMT_RGB24:
-		return 3;
+	case AV_PIX_FMT_RGB24:		return TFrameFormat::RGB;	
+	case AV_PIX_FMT_RGBA:		return TFrameFormat::RGBA;
+	case AV_PIX_FMT_YUYV422:	return TFrameFormat::YUV;
+	default:					return TFrameFormat::Invalid;
 	};
-
-	//	if not a supported type, return 0
-	BufferString<100> Debug;
-	Debug << "Unsupported format; " << Format;
-	Unity::DebugLog( Debug );
-	return 0;
 }
+#endif
 
+
+#if defined(ENABLE_DECODER_LIBAV)
 enum AVPixelFormat GetFormat(const TFrameMeta& FrameMeta)
 {
-	if ( FrameMeta.mChannels == 3 )
+	switch ( FrameMeta.mFormat )
 	{
-		return PIX_FMT_RGB24;
+	case TFrameFormat::RGB:		return AV_PIX_FMT_RGB24;
+	case TFrameFormat::RGBA:	return AV_PIX_FMT_RGBA;
+	case TFrameFormat::YUV:		return AV_PIX_FMT_YUYV422;
+	default:
+		return PIX_FMT_NONE;
 	}
+}
+#endif
 
-	if ( FrameMeta.mChannels == 4 )
-	{
-		return PIX_FMT_RGBA;
-	}
+TFrameBuffer::TFrameBuffer(int MaxFrameBufferSize,TFramePool& FramePool) :
+	mMaxFrameBufferSize	( ofMax(MaxFrameBufferSize,1) ),
+	mFramePool			( FramePool )
+{
+}
+	
+TFrameBuffer::~TFrameBuffer()
+{
+	ReleaseFrames();
+}
 
-	return PIX_FMT_NONE;
+bool TFrameBuffer::IsFull()
+{
+	ofMutex::ScopedLock Lock( mFrameMutex );
+	if ( mFrameBuffers.GetSize() >= mMaxFrameBufferSize )
+		return true;
+	return false;
 }
 
 
-TDecodeThread::TDecodeThread(TDecodeParams& Params,TFramePool& FramePool) :
+TDecodeThread::TDecodeThread(TDecodeParams& Params,TFrameBuffer& FrameBuffer,TFramePool& FramePool) :
 	SoyThread			( "TDecodeThread" ),
-	mFrameCount			( 0 ),
+	mFrameBuffer		( FrameBuffer ),
 	mFramePool			( FramePool ),
 	mParams				( Params ),
 	mFinishedDecoding	( false )
 {
+	Unity::DebugLog(__FUNCTION__);
 }
 
 TDecodeThread::~TDecodeThread()
 {
+	ofScopeTimerWarning Timer( __FUNCTION__, 1 );
+
+	Unity::DebugLog("~TDecodeThread release frames");
+	mFrameBuffer.ReleaseFrames();
+
+	Unity::DebugLog("~TDecodeThread WaitForThread");
 	waitForThread();
+
+	Unity::DebugLog("~TDecodeThread finished");
 }
+
 
 bool TDecodeThread::Init()
 {
+	Unity::DebugLog( __FUNCTION__ );
+
 	//	init decoder
 	if ( !mDecoder.Init(mParams.mFilename.c_str()) )
 		return false;
 
-	//	todo: check video params are valid
-
-	//	start thread
-	startThread(true,true);
+	Unity::DebugLog("TDecodeThread - starting thread");
+	startThread( true, true );
+	Unity::DebugLog("TDecodeThread - starting thread OK");
 	return true;
 }
 
-bool TDecodeThread::HasVideoToPop()
+void TFrameBuffer::ReleaseFrames()
+{
+	ofMutex::ScopedLock lock( mFrameMutex );
+
+	//	free frames back to pool
+	for ( int i=mFrameBuffers.GetSize()-1;	i>=0;	i-- )
+	{
+		auto Frame = mFrameBuffers.PopAt(i);
+		mFramePool.Free( Frame );
+	}
+}
+
+bool TFrameBuffer::HasVideoToPop()
 {
 	ofMutex::ScopedLock lock( mFrameMutex );
 	return !mFrameBuffers.IsEmpty();
 }
 
 
-TFramePixels* TDecodeThread::PopFrame()
+TFramePixels* TFrameBuffer::PopFrame(SoyTime Timestamp)
 {
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock lock( mFrameMutex );
 
-	TFramePixels* PoppedFrame = NULL;
-	if ( !mFrameBuffers.IsEmpty() )
+	if ( mFrameBuffers.GetSize() < FORCE_BUFFER_FRAME_COUNT )
+		return nullptr;
+
+	//	work out next frame we want to use
+	int PopFrameIndex = -1;
+
+	for ( int i=0;	i<mFrameBuffers.GetSize();	i++ )
 	{
-		PoppedFrame = mFrameBuffers.PopAt(0);
+		auto& FrameBuffer = *mFrameBuffers[i];
+		auto FrameTimestamp = FrameBuffer.mTimestamp;
+
+		//	in the future? break out of the loop and don't use i
+		if ( FrameTimestamp > Timestamp && Timestamp.IsValid() )
+			break;
+
+		//	past (or equal) so use this one
+		PopFrameIndex = i;
+		continue;
 	}
 
+	//	skipping some frames
+	int SkipCount = PopFrameIndex;
+	if ( SkipCount > 0 && SKIP_PAST_FRAMES )
+	{
+		BufferString<100> Debug;
+		Debug << "Skipping " << SkipCount << " frames";
+		Unity::DebugLog( Debug );
+
+
+		//	pop & release the first X frames we're going to skip
+		for ( int i=0;	i<SkipCount;	i++ )
+		{
+			auto* Frame = mFrameBuffers.PopAt(0);
+			
+			BufferString<100> Debug;
+			Debug << "Frame " << Frame->mTimestamp << " skipped";
+			ofLogNotice( Debug.c_str() );
+
+			mFramePool.Free( Frame );
+			PopFrameIndex--;
+		}
+		assert( PopFrameIndex == 0 );
+	}
+
+	//	nothing to use
+	if ( PopFrameIndex == -1 )
+		return NULL;
+
+	TFramePixels* PoppedFrame = mFrameBuffers.PopAt(0);
 	return PoppedFrame;
 }
 
@@ -123,10 +232,7 @@ void TDecodeThread::threadedFunction()
 		Sleep(1);
 
 		//	if buffer is filled, stop (don't buffer too many frames)
-		bool DoDecode = false;
-		mFrameMutex.lock();
-		DoDecode = (mFrameBuffers.GetSize() < mParams.mMaxFrameBuffers);
-		mFrameMutex.unlock();
+		bool DoDecode = !mFrameBuffer.IsFull();
 
 		if ( !DoDecode )
 			continue;
@@ -138,59 +244,176 @@ void TDecodeThread::threadedFunction()
 	}
 }
 
-void TDecodeThread::PushFrame(TFramePixels* pFrame)
+void TFrameBuffer::PushFrame(TFramePixels* pFrame)
 {
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock lock( mFrameMutex );
-	mFrameBuffers.PushBack( pFrame );
-	mFrameCount++;
+
+	//	sort by time, it's possible we get frames out of order due to encoding
+	auto SortedFrameBuffers = GetSortArray( mFrameBuffers, TSortPolicy_TFramePixelsByTimestamp() );
+	SortedFrameBuffers.Push( pFrame );
 }
 
 TFrameMeta TDecodeThread::GetDecodedFrameMeta()
 {
-	//	get the decode-to-format
-	//	gr: 4 channel as dx11 doesn't do 24bpp so we need RGBA
-	auto VideoFormat = GetVideoFrameMeta();
-	//TFrameMeta Format( VideoFormat.mWidth, VideoFormat.mHeight, 4 );
-	TFrameMeta Format( 4096, 2048, 4 );
-	return Format;
+	ofMutex::ScopedLock lock( mDecodeFormat );
+	return mDecodeFormat;
+}
+	
+	
+void TDecodeThread::SetDecodedFrameMeta(TFrameMeta Format)
+{
+	ofMutex::ScopedLock lock( mDecodeFormat );
+
+	//	no change
+	if ( mDecodeFormat.Get() == Format )
+		return;
+
+	//	update
+	mDecodeFormat.Get() = Format;
+
+#if defined(ENABLE_DECODER_LIBAV_INIT_SIZE_FRAME)
+	//	push a green "OK" frame
+	TFramePixels* Frame = mFramePool.Alloc( GetDecodedFrameMeta(), "Debug init" );
+	if ( Frame )
+	{
+		Unity::DebugLog( BufferString<100>()<<"Pushing Debug Frame; " << __FUNCTION__ );
+		Frame->SetColour( ENABLE_DECODER_LIBAV_INIT_SIZE_FRAME );
+		mFrameBuffer.PushFrame( Frame );	
+	}
+	else
+	{
+		BufferString<100> Debug;
+		Debug << "failed to alloc debug Init frame";
+		Unity::DebugLog( Debug );
+	}
+#endif
+
+}
+
+SoyTime TDecodeThread::GetMinTimestamp()
+{
+	ofMutex::ScopedLock Lock( mMinTimestamp );
+	return mMinTimestamp;
+}
+
+void TDecodeThread::SetMinTimestamp(SoyTime Timestamp)
+{
+	ofMutex::ScopedLock Lock( mMinTimestamp );
+	mMinTimestamp.Get() = Timestamp;
 }
 
 bool TDecodeThread::DecodeNextFrame()
 {
+	ofScopeTimerWarning Timer( "thread DecodeNextFrame", 1 );
+
 	//	alloc a frame
-	TFramePixels* Frame = mFramePool.Alloc( GetDecodedFrameMeta() );
+	TFramePixels* Frame = mFramePool.Alloc( GetDecodedFrameMeta(), __FUNCTION__ );
+
+	//	out of memory/pool, or non-valid format (ie. dont know output dimensions yet)
 	if ( !Frame )
 		return false;
 
-	if ( !mDecoder.DecodeNextFrame( *Frame ) )
+	bool TryAgain = true;
+	while ( TryAgain )
 	{
-		mFinishedDecoding = true;
-		mFramePool.Free( Frame );
-		return false;
+		SoyTime MinTimestamp = GetMinTimestamp();
+
+		//	success!
+		if ( mDecoder.DecodeNextFrame( *Frame, MinTimestamp, TryAgain ) )
+			break;
+		
+		//	failed, and failed hard
+		if ( !TryAgain )
+		{
+			mFinishedDecoding = true;
+			mFramePool.Free( Frame );
+			return false;
+		}
 	}
 
-	PushFrame( Frame );
+	/*
+	BufferString<100> Debug;
+	Debug << Frame->mTimestamp << " decoded -> framebuffer";
+	Unity::DebugLog( Debug );
+	*/
+	mFrameBuffer.PushFrame( Frame );
 
 	return true;
 }
 
 
-TDecoder::TDecoder() :
-	mVideoStream	( NULL ),
+TDecoder::TDecoder()
+#if defined(ENABLE_DECODER_LIBAV)
+	:
+	mScaleContext	( nullptr ),
+	mVideoStream	( nullptr ),
 	mDataOffset		( 0 )
+#endif
 {
+	//	initialise dxvacontext
+#if defined(ENABLE_DVXA)
+	ZeroMemory( &mDxvaContext, sizeof(mDxvaContext) );
+#endif
 }
 
 
 TDecoder::~TDecoder()
 {
+#if defined(ENABLE_DECODER_LIBAV)
+	sws_freeContext( mScaleContext );
+	mScaleContext = nullptr;
+#endif
+
+#if defined(ENABLE_DVXA)
+	FreeDxvaContext();
+#endif
 }
 
+#if defined(ENABLE_DVXA)
+bool TDecoder::InitDxvaContext()
+{
+	//	already initialised
+	if ( mDxvaContext.decoder )
+		return true;
+	DXVA2CreateVideoService (
+	GUID* GuidResults = nullptr;
+	UINT GuidCount = 0;
+	auto Result = IDirectXVideoDecoderService::GetDecoderDeviceGuids( &GuidCount, &GuidResults );
+	Array<GUID> Guids = GetRemoteArray( GuidResults, GuidCount, GuidCount );
+	CoTaskMemFree( GuidResults );
+	if ( FAILED( Result ) )
+		return false;
+	/*
+	REFGUID Guid;
+	DXVA2_VideoDesc VideoDesc;
+	DXVA2_ConfigPictureDecode DecoderConfig;
+	//IDirectXVideoDecoderService::CreateVideoDecoder( Guid, &VideoDesc, &DecoderConfig );
+	*/
+	return false;
+}
+#endif
+
+
+#if defined(ENABLE_DVXA)
+void TDecoder::FreeDxvaContext()
+{
+}
+#endif
+
+
+
+
+#if defined(ENABLE_DECODER_LIBAV)
 bool TDecoder::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacket,std::shared_ptr<AVFrame>& Frame,int& DataOffset)
 {
+	ofScopeTimerWarning Timer( __FUNCTION__, 1 );
+
 	//	not setup right??
 	if ( !mVideoStream )
 		return false;
+
+	ofScopeTimerWarning DecodeTimer( "avcodec_decode_video2", 1, false );
 
 	//	keep processing until a frame is loaded
 	int isFrameAvailable = false;
@@ -214,7 +437,9 @@ bool TDecoder::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacket,std:
 		auto& packetToSend = CurrentPacket.packet;
 	
 		// sending data to libavcodec
+		DecodeTimer.Start();
 		const auto processedLength = avcodec_decode_video2( mCodec.get(), Frame.get(), &isFrameAvailable, &packetToSend );
+		DecodeTimer.Stop();
 		if (processedLength < 0) 
 		{
 			//av_free_packet(&packet);
@@ -228,16 +453,18 @@ bool TDecoder::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacket,std:
 			continue;
 	
 		//	frame is availible, return it's info
-		FrameMeta = TFrameMeta( Frame->width, Frame->height, GetChannelCount(static_cast<AVPixelFormat>(Frame->format) ) );
+		FrameMeta = TFrameMeta( Frame->width, Frame->height, GetFormat(static_cast<AVPixelFormat>(Frame->format) ) );
 		return true;
 	}
 
 	//	kept processing until we ran out of data without a result
 	return false;
 }
+#endif
 
 bool TDecoder::PeekNextFrame(TFrameMeta& FrameMeta)
 {
+#if defined(ENABLE_DECODER_LIBAV)
 	//	not setup right??
 	if ( !mVideoStream )
 		return false;
@@ -250,143 +477,108 @@ bool TDecoder::PeekNextFrame(TFrameMeta& FrameMeta)
 		return false;
 
 	return true;
+#else
+	return false;
+#endif
 }
 
 
-bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame)
+bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimestamp,bool& TryAgain)
 {
+	TryAgain = false;
+
+#if defined(ENABLE_DECODER_LIBAV)
+	ofScopeTimerWarning Timer( "DecodeNextFrame TOTAL", 1 );
+
 	TFrameMeta FrameMeta;
 	if ( !DecodeNextFrame( FrameMeta, mCurrentPacket, mFrame, mDataOffset ) )
 		return false;
-	/*
-	//	frame mis match
-	if ( !OutputFrame.mMeta.IsEqualSize(FrameMeta) )
+	
+	//	work out timestamp
+	double FrameRate = av_q2d( mVideoStream->r_frame_rate );
+	//	avoid /zero
+	FrameRate = ofMax(1.0/60.0,1.0/FrameRate);
+
+	if ( USE_REAL_TIMESTAMP )
 	{
-		BufferString<1000> Debug;
-		Debug << "Output size (" << OutputFrame.mMeta.mWidth << "," << OutputFrame.mMeta.mHeight << ") mis match to video size (" << FrameMeta.mWidth << "," << FrameMeta.mHeight << ")";
+		double TimeBase = av_q2d( mVideoStream->time_base );
+		auto PresentationTimestamp = mFrame->pts;
+		double Timestamp = mFrame->pts * TimeBase;
+		double TimeSecs = Timestamp * FrameRate;
+		double TimeMs = TimeSecs * 1000.f;
+		OutputFrame.mTimestamp = SoyTime( static_cast<uint64>(TimeMs) );
+	}
+	else
+	{
+		uint64 Step = static_cast<uint64>( 1.f / FrameRate );
+		mFakeRunningTimestamp += Step;
+		OutputFrame.mTimestamp = SoyTime( mFakeRunningTimestamp );
+	}
+	
+	//	checking for out-of-order frames
+	if ( OutputFrame.mTimestamp < mLastDecodedTimestamp )
+	{
+		BufferString<100> Debug;
+		Debug << (DECODER_SKIP_OOO_FRAMES?"Skipped":"Decoded") << " out-of-order frames " << mLastDecodedTimestamp << " ... " << OutputFrame.mTimestamp;
 		Unity::DebugLog( Debug );
+
+		if ( DECODER_SKIP_OOO_FRAMES )
+		{
+			TryAgain = true;
+			return false;
+		}
+	}
+	mLastDecodedTimestamp = OutputFrame.mTimestamp;
+	
+
+	//	too far behind, skip it
+	if ( OutputFrame.mTimestamp < MinTimestamp && MinTimestamp.IsValid() && !STORE_PAST_FRAMES )
+	{
+		BufferString<100> Debug;
+		Debug << "Decoded frame " << OutputFrame.mTimestamp << " too far behind " << MinTimestamp;
+		Unity::DebugLog( Debug );
+		TryAgain = true;
 		return false;
 	}
-	*/
+
+	//	gr: avpicture takes no time (just filling a struct?)
 	AVPicture pict;
-			
-	//avpicture_alloc( &pict, PIX_FMT_RGBA, OutputFrame->mWidth, OutputFrame->mHeight );
 	memset(&pict, 0, sizeof(pict));
 	avpicture_fill(&pict, OutputFrame.GetData(), GetFormat( OutputFrame.mMeta ), OutputFrame.GetWidth(), OutputFrame.GetHeight() );
 
-	auto ctxt = sws_getContext( mFrame->width, mFrame->height, static_cast<PixelFormat>(mFrame->format), OutputFrame.GetWidth(), OutputFrame.GetHeight(), GetFormat( OutputFrame.mMeta ), SWS_BILINEAR, nullptr, nullptr, nullptr);
-	if ( !ctxt )
+
+	ofScopeTimerWarning sws_getContext_Timer( "DecodeFrame - sws_getContext", 1 );
+	static int ScaleMode = SWS_POINT;
+//	static int ScaleMode = SWS_FAST_BILINEAR;
+//	static int ScaleMode = SWS_BILINEAR;
+//	static int ScaleMode = SWS_BICUBIC;
+	auto ScaleContext = sws_getCachedContext( mScaleContext, mFrame->width, mFrame->height, static_cast<PixelFormat>(mFrame->format), OutputFrame.GetWidth(), OutputFrame.GetHeight(), GetFormat( OutputFrame.mMeta ), ScaleMode, nullptr, nullptr, nullptr);
+	sws_getContext_Timer.Stop();
+
+	if ( !ScaleContext )
 	{
 		Unity::DebugLog("Failed to get converter");
 		return false;
 	}
-	sws_scale(ctxt, mFrame->data, mFrame->linesize, 0, mFrame->height, pict.data, pict.linesize);
 
-	// pic.data[0] now contains the image data in RGB format (3 bytes)
-	// and pic.linesize[0] is the pitch of the data (ie. size of a row in memory, which can be larger than width*sizeof(pixel))
-
-	// we can for example upload it to an OpenGL texture (note: untested code)
-	// glBindTexture(GL_TEXTURE_2D, myTex);
-	// for (int i = 0; i < avFrame->height; ++i) {
-	// 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, i, avFrame->width, 1, GL_RGB, GL_UNSIGNED_BYTE, avFrame->data[0] + (i * pic.linesize[0]));
-	// }
-
-	//avpicture_free(&pict);
-	return true;
-	/*
-#if defined(ENABLE_DECODER)
-	//	not setup right??
-	if ( !mVideoStream )
-		return false;
-
-	//	keep processing until a frame is loaded
-	int isFrameAvailable = false;
-	while ( !isFrameAvailable )
-	{
-		// reading a packet using libavformat
-		if (mDataOffset >= mCurrentPacket.packet.size) 
-		{
-			do 
-			{
-				mCurrentPacket.reset( mContext.get());
-				if (mCurrentPacket.packet.stream_index != mVideoStream->index)
-					continue;
-			}
-			while(0);
-		}
-
-		// preparing the packet that we will send to libavcodec
-		auto& packetToSend = mCurrentPacket.packet;
+	ofScopeTimerWarning sws_scale_Timer( "DecodeFrame - sws_scale", 1 );
+	sws_scale( ScaleContext, mFrame->data, mFrame->linesize, 0, mFrame->height, pict.data, pict.linesize);
+	sws_scale_Timer.Stop();
 	
-		// sending data to libavcodec
-		const auto processedLength = avcodec_decode_video2(mCodec.get(), mFrame.get(), &isFrameAvailable, &packetToSend);
-		if (processedLength < 0) 
-		{
-			//av_free_packet(&packet);
-			Unity::DebugLog("Error while processing the data");
-			return false;
-		}
-		mDataOffset += processedLength;
-
-		// processing the image if available
-		if (isFrameAvailable) 
-		{
-			//	debug first time
-			if ( mFirstDecode )
-			{
-				BufferString<100> Debug;
-				Debug << "Decoded frame " << mFrame->width << " x " << mFrame->height << " format: " << mFrame->format;
-				Unity::DebugLog( Debug );
-				mFirstDecode = false;
-			}
-
-			//	frame mis match
-			TFrameMeta FrameMeta( mFrame->width, mFrame->height, GetChannelCount(static_cast<AVPixelFormat>(mFrame->format)) );
-			if ( OutputFrame.mMeta != FrameMeta )
-			{
-				Unity::DebugLog("Frame meta mis match");
-				return false;
-			}
-
-			AVPicture pict;
-			
-			//avpicture_alloc( &pict, PIX_FMT_RGBA, OutputFrame->mWidth, OutputFrame->mHeight );
-			memset(&pict, 0, sizeof(pict));
-			avpicture_fill(&pict, OutputFrame.GetData(), GetFormat( OutputFrame.mMeta ), OutputFrame.GetWidth(), OutputFrame.GetHeight() );
-
-			auto ctxt = sws_getContext( mFrame->width, mFrame->height, static_cast<PixelFormat>(mFrame->format), OutputFrame.GetWidth(), OutputFrame.GetHeight(), GetFormat( OutputFrame.mMeta ), SWS_BILINEAR, nullptr, nullptr, nullptr);
-			if ( !ctxt )
-			{
-				Unity::DebugLog("Failed to get converter");
-				return false;
-			}
-			sws_scale(ctxt, mFrame->data, mFrame->linesize, 0, mFrame->height, pict.data, pict.linesize);
-
-			// pic.data[0] now contains the image data in RGB format (3 bytes)
-			// and pic.linesize[0] is the pitch of the data (ie. size of a row in memory, which can be larger than width*sizeof(pixel))
-
-			// we can for example upload it to an OpenGL texture (note: untested code)
-			// glBindTexture(GL_TEXTURE_2D, myTex);
-			// for (int i = 0; i < avFrame->height; ++i) {
-			// 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, i, avFrame->width, 1, GL_RGB, GL_UNSIGNED_BYTE, avFrame->data[0] + (i * pic.linesize[0]));
-			// }
-
-			//avpicture_free(&pict);
-			
-		}
-	}
-
 	return true;
-#endif
+#else
 	return false;
-	*/
+#endif
 }
 
+	extern AVHWAccel ff_h264_dxva2_hwaccel;
 
 
 bool TDecoder::Init(const std::wstring& Filename)
 {
-#if defined(ENABLE_DECODER)
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
+
+#if defined(ENABLE_DECODER_LIBAV)
 	std::string Filenamea( Filename.begin(), Filename.end() );
 
 	//	check file exists
@@ -400,6 +592,7 @@ bool TDecoder::Init(const std::wstring& Filename)
 
 	//	init lib av
 	av_register_all();
+
 
 	mContext = std::shared_ptr<AVFormatContext>(avformat_alloc_context(), &avformat_free_context);
 	auto avFormatPtr = mContext.get();
@@ -433,7 +626,34 @@ bool TDecoder::Init(const std::wstring& Filename)
 		Unity::DebugLog("failed to find a video stream");
 		return false;
 	}
-    
+	
+	auto codecid = mVideoStream->codec->codec_id;
+
+	//	find hardware accell
+	AVHWAccel* hwaccel_for_codec = nullptr;
+	{
+		AVHWAccel* hwaccel = nullptr;
+		while( hwaccel = av_hwaccel_next(hwaccel) )
+		{
+			BufferString<100> Debug;
+			Debug << "Found hardware accellerator \"" << hwaccel->name << "\"";
+			Unity::DebugLog( Debug );
+
+			if ( hwaccel->id == codecid	) //CODEC_ID_H264))
+			{
+				hwaccel_for_codec = hwaccel;
+			}
+			/*
+			{ if((hwaccel->pix_fmt == AV_PIX_FMT_DXVA2_VLD) && (hwaccel->id == CODEC_ID_H264))
+			{ h264_dxva2_hwaccel = hwaccel;
+			av_register_hwaccel(h264_dxva2_hwaccel);
+			printf("dxva2_hwaccel = %s\r\n",h264_dxva2_hwaccel->name);
+			}
+		av_register_hwaccel( &ff_h264_dxva2_hwaccel );
+			*/
+		}
+	}
+
 	// getting the required codec structure
 	const auto codec = avcodec_find_decoder( mVideoStream->codec->codec_id );
 	if ( codec == nullptr )
@@ -444,7 +664,23 @@ bool TDecoder::Init(const std::wstring& Filename)
 
 	// allocating a structure
 	mCodec = std::shared_ptr<AVCodecContext>(avcodec_alloc_context3(codec), [](AVCodecContext* c) { avcodec_close(c); av_free(c); });
-
+	
+	if ( hwaccel_for_codec )
+	{
+#if defined(ENABLE_DVXA)
+		//	init context
+		if ( InitDxvaContext() )
+		{
+			BufferString<100> Debug;
+			Debug << "Found hardware accellerator for this codec; \"" << hwaccel_for_codec->name << "\"";
+			Unity::DebugLog( Debug );
+			av_register_hwaccel( hwaccel_for_codec );
+			mCodec->hwaccel = hwaccel_for_codec;
+			mCodec->hwaccel_context = &mDxvaContext;
+		}
+#endif
+	}
+	
 	// we need to make a copy of videoStream->codec->extradata and give it to the context
 	// make sure that this vector exists as long as the avVideoCodec exists
 	mCodecContextExtraData = std::vector<uint8_t>( mVideoStream->codec->extradata, mVideoStream->codec->extradata + mVideoStream->codec->extradata_size);

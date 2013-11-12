@@ -45,7 +45,6 @@ public:
 
 	TYPE*		operator ->()	{	return mObject;	}
 	operator	TYPE*()			{	return mObject;	}
-	operator	bool() const	{	return mObject!=NULL;	}
 
 	void		Set(TYPE* Object,bool AddRef)
 	{
@@ -101,6 +100,7 @@ namespace Unity
 			OpenGLES20Desktop,   // OpenGL ES 2.0 desktop variant (i.e. NaCl)
 			Count
 		};
+		BufferString<100>	ToString(Type DeviceType);
 	};
 
 
@@ -142,6 +142,13 @@ protected:
     void*               mObject;
 };
 
+template<class STRING>
+inline STRING& operator<<(STRING& str,const Unity::TGfxDevice::Type& Value)
+{
+	str << Unity::TGfxDevice::ToString( Value );
+	return str;
+}
+
 
 #if defined(ENABLE_DX11)
 class Unity::TTexture_DX11 : public Unity::TTexture
@@ -180,13 +187,17 @@ public:
 	TUnityDevice_DX11(ID3D11Device* Device);
     
 	virtual bool		IsValid()	{	return true;	}
+
 	virtual TFrameMeta	GetTextureMeta(Unity::TTexture& Texture);
-    
+	bool				CopyTexture(TAutoRelease<ID3D11Texture2D>& Texture,const TFramePixels& Frame,bool Blocking);
+	bool				CopyTexture(TAutoRelease<ID3D11Texture2D>& DstTexture,TAutoRelease<ID3D11Texture2D>& SrcTexture);
+
 	ID3D11Device&		GetDevice()		{	assert( mDevice );	return *mDevice;	}
 	
 	TAutoRelease<ID3D11Texture2D>	AllocTexture(TFrameMeta FrameMeta);
     
 private:
+	ofMutex						mContextLock;	//	DX11 context is not threadsafe
 	TAutoRelease<ID3D11Device>	mDevice;
 };
 #endif

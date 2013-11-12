@@ -4,9 +4,13 @@
 
 
 
+#define ENABLE_DECODER_LIBAV
+//#define ENABLE_DVXA
+
+
+
 //	link to ffmpeg static lib (requires DLL)
-#define ENABLE_DECODER
-#if defined(ENABLE_DECODER)
+#if defined(ENABLE_DECODER_LIBAV)
 extern "C"
 {
 #include <libavutil/opt.h>
@@ -19,7 +23,7 @@ extern "C"
 #include <libavutil/samplefmt.h>
 #include <libavutil/samplefmt.h>
 #include <libswscale/swscale.h>
-
+#include <libavcodec/dxva2.h>
 };
 #pragma comment(lib,"avcodec.lib")
 #pragma comment(lib,"avfilter.lib")
@@ -32,8 +36,8 @@ extern "C"
 
 class TFramePool;
 
-#if defined(ENABLE_DECODER)
 
+#if defined(ENABLE_DECODER_LIBAV)
 class TPacket 
 {
 public:
@@ -67,16 +71,28 @@ public:
 class TDecodeParams
 {
 public:
-	TDecodeParams() :
-		mMaxFrameBuffers	( 1 )
-	{
-	}
-
-public:
 	std::wstring	mFilename;
-	int				mMaxFrameBuffers;
 };
 
+
+class TFrameBuffer
+{
+public:
+	TFrameBuffer(int MaxFrameBufferSize,TFramePool& FramePool);
+	~TFrameBuffer();
+
+	bool						IsFull();
+	TFramePixels*				PopFrame(SoyTime Frame);
+	bool						HasVideoToPop();
+	void						PushFrame(TFramePixels* pFrame);
+	void						ReleaseFrames();
+
+public:
+	int							mMaxFrameBufferSize;
+	TFramePool&					mFramePool;
+	ofMutex						mFrameMutex;
+	Array<TFramePixels*>		mFrameBuffers;	//	frame's we've read and ready to be popped
+};
 
 
 
@@ -97,14 +113,26 @@ public:
 	TVideoMeta		GetVideoMeta()		{	return mVideoMeta;	}
 	TFrameMeta		GetFrameMeta()		{	return GetVideoMeta().mFrameMeta;	}
 	bool			PeekNextFrame(TFrameMeta& FrameMeta);
-	bool			DecodeNextFrame(TFramePixels& OutFrame);
+	bool			DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
 
 private:
+#if defined(ENABLE_DECODER_LIBAV)
 	bool			DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& Packet,std::shared_ptr<AVFrame>& Frame,int& DataOffset);
+#endif
+
+#if defined(ENABLE_DVXA)
+	bool			InitDxvaContext();
+	void			FreeDxvaContext();
+#endif
 
 public:
 	TVideoMeta							mVideoMeta;
+	SoyTime								mLastDecodedTimestamp;
+#if defined(USE_REAL_TIMESTAMP)
+	SoyTime								mFakeRunningTimestamp;
+#endif
 
+#if defined(ENABLE_DECODER_LIBAV)
 	std::shared_ptr<AVFormatContext>	mContext;
 	std::shared_ptr<AVCodecContext>		mCodec;
 	std::vector<uint8_t>				mCodecContextExtraData;
@@ -112,6 +140,11 @@ public:
 	std::shared_ptr<AVFrame>			mFrame;			//	currently decoding to this frame
 	AVStream*							mVideoStream;	//	gr: change to index!
 	int									mDataOffset;
+	SwsContext*							mScaleContext;
+#endif
+#if defined(ENABLE_DVXA)
+	dxva_context						mDxvaContext;
+#endif
 };
 
 
@@ -121,29 +154,30 @@ public:
 	static const int		INVALID_FRAME = -1;
 
 public:
-	TDecodeThread(TDecodeParams& Params,TFramePool& FramePool);
+	TDecodeThread(TDecodeParams& Params,TFrameBuffer& FrameBuffer,TFramePool& FramePool);
 	~TDecodeThread();
 
 	bool						Init();				//	do initial load and start thread
 	TFrameMeta					GetVideoFrameMeta()		{	return mDecoder.GetFrameMeta();	}
 	TFrameMeta					GetDecodedFrameMeta();
-	TFramePixels*				PopFrame();
-	bool						HasVideoToPop();
+	void						SetDecodedFrameMeta(TFrameMeta Format);
 	bool						IsFinishedDecoding()	{	return mFinishedDecoding;	}
+	SoyTime						GetMinTimestamp();
+	void						SetMinTimestamp(SoyTime Timestamp);
 
 protected:
 	virtual void				threadedFunction();
 	bool						DecodeNextFrame();
-	void						PushFrame(TFramePixels* pFrame);
 
 protected:
+	ofMutexT<TFrameMeta>		mDecodeFormat;
 	bool						mFinishedDecoding;
 	TFramePool&					mFramePool;
 	TDecoder					mDecoder;
-	ofMutex						mFrameMutex;
-	int							mFrameCount;
-	Array<TFramePixels*>		mFrameBuffers;	//	frame buffer
+	TFrameBuffer&				mFrameBuffer;
 	TDecodeParams				mParams;
+
+	ofMutexT<SoyTime>			mMinTimestamp;	//	skip decoding frames before this time
 };
 
 

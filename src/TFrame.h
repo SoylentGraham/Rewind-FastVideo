@@ -3,6 +3,18 @@
 #include <ofxSoylent.h>
 #include <SoyThread.h>
 
+namespace TFrameFormat
+{
+	enum Type
+	{
+		Invalid,
+		RGB,
+		RGBA,
+		YUV,	//	4:2:2
+	};
+
+	int		GetChannels(Type Format);
+};
 
 class TFrameMeta
 {
@@ -10,27 +22,27 @@ public:
 	TFrameMeta() :
 		mWidth		( 0 ),
 		mHeight		( 0 ),
-		mChannels	( 0 )
+		mFormat	( TFrameFormat::Invalid )
 	{
 	}
 
-	TFrameMeta(int Width,int Height,int Channels) :
+	TFrameMeta(int Width,int Height,TFrameFormat::Type Format) :
 		mWidth		( ofMax(0,Width) ),
 		mHeight		( ofMax(0,Height) ),
-		mChannels	( ofMax(0,Channels) )
+		mFormat		( Format )
 	{
 	}
 
 	bool		IsEqualSize(const TFrameMeta& that) const;
-
-	bool		IsValid() const				{	return mWidth>0 && mHeight>0 && mChannels>0;	}
+	int			GetChannels() const			{	return TFrameFormat::GetChannels( mFormat );	}
+	bool		IsValid() const				{	return mWidth>0 && mHeight>0 && mFormat!=TFrameFormat::Invalid;	}
 	bool		operator==(const TFrameMeta& that) const;
 	bool		operator!=(const TFrameMeta& that) const;
 
 public:
-	int		mWidth;
-	int		mHeight;
-	int		mChannels;
+	int					mWidth;
+	int					mHeight;
+	TFrameFormat::Type	mFormat;
 };
 
 class TColour
@@ -64,19 +76,22 @@ public:
 class TFramePixels
 {
 public:
-	TFramePixels(TFrameMeta Meta);
+	TFramePixels(TFrameMeta Meta,const char* Owner=nullptr);
 
+	void					SetColour(const TColour& Colour);
 	unsigned char*			GetData()			{	return mPixels.GetArray();	}
 	const unsigned char*	GetData() const		{	return mPixels.GetArray();	}
 	int						GetDataSize() const	{	return mPixels.GetDataSize();	}
-	int						GetPitch() const	{	return sizeof(uint8) * mMeta.mWidth * mMeta.mChannels;	}
+	int						GetPitch() const	{	return sizeof(uint8) * mMeta.mWidth * mMeta.GetChannels();	}
 	int						GetWidth() const	{	return mMeta.mWidth;	}
 	int						GetHeight() const	{	return mMeta.mHeight;	}
+	void					SetOwner(const char* Owner)	{	mDebugOwner = Owner;	}
 	
 public:
-	TFrameMeta		mMeta;
-	Array<uint8>	mPixels;
-	float			mTimestamp;	//	in secs from 0
+	BufferString<100>	mDebugOwner;		//	current owner
+	TFrameMeta			mMeta;
+	Array<uint8>		mPixels;
+	SoyTime				mTimestamp;	//	frame since 0 
 };
 
 
@@ -87,13 +102,21 @@ class TFramePool
 public:
 	TFramePool(int MaxPoolSize);
 
-	TFramePixels*	Alloc(TFrameMeta FrameMeta);	//	increase pool size
+	TFramePixels*	Alloc(TFrameMeta FrameMeta,const char* Owner);	//	increase pool size
 	bool			Free(TFramePixels* pFrame);
+	bool			IsEmpty();						//	no used slots
+
+	void			DebugUsedFrames();
+
+	void			PreAlloc(TFrameMeta FrameMeta);	//	allocate all the frames if we havent already
+
+private:
+	int				GetAllocatedCount();
 
 protected:
 	int							mPoolMaxSize;
-	ofMutex						mFrameMutex;
-	std::vector<TFramePixels*>	mPool;		//	
-	std::vector<bool>			mPoolUsed;	//	per-frame buffer to say if entry is in use
+	ofMutex						mPoolLock;
+	Array<TFramePixels*>		mUsedPool;
+	Array<TFramePixels*>		mFreePool;
 };
-
+DECLARE_NONCOMPLEX_NO_CONSTRUCT_TYPE( TFramePixels* );

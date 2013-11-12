@@ -16,7 +16,9 @@ public class FastVideo : MonoBehaviour
 	[DllImport ("FastVideo")]	private static extern bool	FreeInstance(ulong Instance);
 	[DllImport ("FastVideo")]	private static extern void	SetDebugLogFunction(System.IntPtr FunctionPtr);
 	[DllImport ("FastVideo")]	private static extern void	SetTexture(ulong Instance,System.IntPtr Texture);
-	[DllImport ("FastVideo")]	private static extern void	SetVideo(ulong Instance,char[] Filename, int Length);
+	[DllImport ("FastVideo")]	private static extern void  SetVideo(ulong Instance,char[] Filename, int Length);
+    [DllImport ("FastVideo")]   private static extern void  Pause(ulong Instance);
+    [DllImport ("FastVideo")]   private static extern void  Resume(ulong Instance);
 
 	//	delegate type and singleton
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -64,9 +66,19 @@ public class FastVideo : MonoBehaviour
 	public void SetVideo(string Filename)
 	{
 		SetVideo( mInstance, Filename.ToCharArray(), Filename.Length );
-	}			
-	
-	//	create end-of-render thread callback
+	}
+
+    public void Pause()
+    {
+        Pause(mInstance);
+    }
+
+    public void Resume()
+    {
+        Resume(mInstance);
+    }
+
+    //	create end-of-render thread callback
 	IEnumerator Start() 
 	{
 		
@@ -84,8 +96,10 @@ public class FastVideo : MonoBehaviour
 		
 		//	start decoding to texture
 		//System.String Filename = "C:\\Users\\RWD Artist\\Desktop\\RWD_Lexus_4k_recut.ogv";
-		System.String Filename = "D:\\PopTrack\\data\\hands___\\hands1__.mov";
-		SetVideo( Filename );
+		//System.String Filename = "D:\\PopTrack\\data\\hands___\\hands1__.mov";
+        //System.String Filename = "D:\\bike 4096-2048.mov";
+        //System.String Filename = "D:\\bike 4000-2000.mov";
+		//SetVideo( Filename );
 		
 		
 		
@@ -148,4 +162,24 @@ public class UseRenderingPlugin : FastVideo {
 	}
 	*/
 
+    void OnMouseOver()
+	{
+        if (Input.GetMouseButton(0))
+        {
+            //	change/restart video
+           // System.String Filename = "D:\\bike 4096-2048.mov";
+            System.String Filename = "D:\\bike-x264.mpg";
+           // System.String Filename = "D:\\bike rgba.mpg";
+            
+            SetVideo(Filename);
+        }
+        if (Input.GetMouseButton(1))
+        {
+            Pause();
+        }
+        if (Input.GetMouseButton(2))
+        {
+            Resume();
+        }
+    }
 }

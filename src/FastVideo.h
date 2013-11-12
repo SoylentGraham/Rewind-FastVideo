@@ -5,8 +5,32 @@
 #include "UnityDevice.h"
 #include "TFrame.h"
 
-#define DEFAULT_MAX_POOL_SIZE		10
-#define DEFAULT_MAX_FRAME_BUFFERS	4
+#define USE_REAL_TIMESTAMP				0
+
+#define DEFAULT_MAX_POOL_SIZE		30
+#define DEFAULT_MAX_FRAME_BUFFERS	(DEFAULT_MAX_POOL_SIZE-1)
+
+#if USE_REAL_TIMESTAMP==1
+	#define FORCE_BUFFER_FRAME_COUNT	20	//	hold X frames before popping (must be less than DEFAULT_MAX_FRAME_BUFFERS)
+#else
+	#define FORCE_BUFFER_FRAME_COUNT	0	//	hold X frames before popping (must be less than DEFAULT_MAX_FRAME_BUFFERS)
+#endif
+
+//#define ENABLE_DECODER_LIBAV_INIT_SIZE_FRAME		TColour(0,255,0,255)
+#define ENABLE_FAILED_DECODER_INIT_FRAME	TColour(255,0,0,255)
+#define ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR	TColour(255,255,0,255)
+
+static bool SKIP_PAST_FRAMES	= true;
+static bool STORE_PAST_FRAMES	= true;
+static bool SHOW_POOL_FULL_MESSAGE	=	true;
+
+#define ALWAYS_COPY_DYNAMIC_TO_TARGET	false	//	gr: I think not changing the target causes some double buffer mess
+#define DYNAMIC_SKIP_OOO_FRAMES			true
+#define DECODER_SKIP_OOO_FRAMES			false
+
+#define REAL_TIME_MODIFIER				1.0f	//	speed up/slow down real life time
+
+static bool DEBUG_RENDER_LAG = true;
 
 class TFastTexture;
 
@@ -63,6 +87,8 @@ extern "C" EXPORT_API Unity::ulong	AllocInstance();
 extern "C" EXPORT_API bool			FreeInstance(Unity::ulong Instance);
 extern "C" EXPORT_API bool			SetTexture(Unity::ulong Instance,void* Texture);
 extern "C" EXPORT_API bool			SetVideo(Unity::ulong Instance,const wchar_t* Filename,int Length);
+extern "C" EXPORT_API bool			Pause(Unity::ulong Instance);
+extern "C" EXPORT_API bool			Resume(Unity::ulong Instance);
 
 //	http://www.gamedev.net/page/resources/_/technical/game-programming/c-plugin-debug-log-with-unity-r3349
 //	gr: call this in unity to tell us where to DebugLog() to
