@@ -8,13 +8,26 @@
 
 namespace Unity
 {
-	TDebugLogFunc	gDebugFunc = NULL;
+	namespace Private
+	{
+		TFastVideo*		gFastVideo = nullptr;
+	};
+
+	TDebugLogFunc		gDebugFunc = nullptr;
+	
+	TFastVideo&			GetFastVideo();			//	allocate singleton if it hasn't been constructed. This avoids us competeting for crt construction order
 };
 
 
-TFastVideo gFastVideo;
-
-
+TFastVideo& Unity::GetFastVideo()
+{
+	if ( !Private::gFastVideo )
+	{
+		Private::gFastVideo = prcore::Heap.Alloc<TFastVideo>();
+	}
+	
+	return *Private::gFastVideo;
+}
 
 
 
@@ -131,19 +144,19 @@ bool TFastVideo::FreeDevice(Unity::TGfxDevice::Type DeviceType)
 extern "C" EXPORT_API Unity::ulong	AllocInstance()
 {
 	//	alloc a new instance
-	SoyRef InstanceRef = gFastVideo.AllocInstance();
+	SoyRef InstanceRef = Unity::GetFastVideo().AllocInstance();
 	Unity::ulong RefInt = static_cast<Unity::ulong>( InstanceRef.GetInt64() );
 	return RefInt;
 }
 
 extern "C" EXPORT_API bool FreeInstance(Unity::ulong Instance)
 {
-	return gFastVideo.FreeInstance( SoyRef(Instance) );
+	return Unity::GetFastVideo().FreeInstance( SoyRef(Instance) );
 }
 
 extern "C" EXPORT_API bool SetTexture(Unity::ulong Instance,void* pTexture)
 {
-	auto* pInstance = gFastVideo.FindInstance( SoyRef(Instance) );
+	auto* pInstance = Unity::GetFastVideo().FindInstance( SoyRef(Instance) );
 	if ( !pInstance )
 		return false;
 
@@ -153,7 +166,7 @@ extern "C" EXPORT_API bool SetTexture(Unity::ulong Instance,void* pTexture)
 
 extern "C" EXPORT_API bool SetVideo(Unity::ulong Instance,const wchar_t* pFilename,int Length)
 {
-	auto* pInstance = gFastVideo.FindInstance( SoyRef(Instance) );
+	auto* pInstance = Unity::GetFastVideo().FindInstance( SoyRef(Instance) );
 	if ( !pInstance )
 		return false;
 
@@ -181,9 +194,9 @@ void Unity::DebugLog(const char* str)
 	ofLogNotice(str);
 
 	//	print to unity if we have a function set
-	if ( gDebugFunc && EnableDebugLog )
+	if ( Unity::gDebugFunc && EnableDebugLog )
 	{
-		(*gDebugFunc)( str );
+		(*Unity::gDebugFunc)( str );
 	}
 }
 
@@ -201,11 +214,11 @@ extern "C" void EXPORT_API UnitySetGraphicsDevice(void* device, int deviceType, 
 	switch ( DeviceEvent )
 	{
 	case Unity::TGfxDeviceEvent::Shutdown:
-		gFastVideo.FreeDevice( DeviceType );
+		Unity::GetFastVideo().FreeDevice( DeviceType );
 		break;
 
 	case Unity::TGfxDeviceEvent::Initialize:
-		gFastVideo.AllocDevice( DeviceType, device );
+		Unity::GetFastVideo().AllocDevice( DeviceType, device );
 		break;
 
     default:
@@ -223,7 +236,7 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID)
 	switch ( eventID )
 	{
 		case Unity::TRenderEvent::OnPostRender:
-			gFastVideo.OnPostRender();
+			Unity::GetFastVideo().OnPostRender();
 			break;
 
 		default:
@@ -235,7 +248,7 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID)
 
 extern "C" EXPORT_API bool Pause(Unity::ulong Instance)
 {
-	auto* pInstance = gFastVideo.FindInstance( SoyRef(Instance) );
+	auto* pInstance = Unity::GetFastVideo().FindInstance( SoyRef(Instance) );
 	if ( !pInstance )
 		return false;
 	
@@ -245,7 +258,7 @@ extern "C" EXPORT_API bool Pause(Unity::ulong Instance)
 
 extern "C" EXPORT_API bool Resume(Unity::ulong Instance)
 {
-	auto* pInstance = gFastVideo.FindInstance( SoyRef(Instance) );
+	auto* pInstance = Unity::GetFastVideo().FindInstance( SoyRef(Instance) );
 	if ( !pInstance )
 		return false;
 	
