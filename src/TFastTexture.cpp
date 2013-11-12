@@ -1,6 +1,8 @@
 #include "TFastTexture.h"
-#include <d3d11.h>
 
+#if defined(ENABLE_DX11)
+#include <d3d11.h>
+#endif
 
 
 
@@ -19,6 +21,7 @@ const char* TFastVideoState::ToString(TFastVideoState::Type State)
 
 
 TFastTexture::TFastTexture(SoyRef Ref,TFramePool& FramePool) :
+    mDevice         (nullptr),
 	mRef			( Ref ),
 	mFrameBuffer	( DEFAULT_MAX_FRAME_BUFFERS, FramePool ),
 	mFramePool		( FramePool ),
@@ -35,7 +38,18 @@ TFastTexture::~TFastTexture()
 	DeleteDynamicTexture();
 	DeleteDecoderThread();
 	DeleteUploadThread();
-} 
+}
+
+TUnityDevice& TFastTexture::GetDevice()
+{
+    static TUnityDevice_Dummy DummyDevice;
+    if ( !mDevice )
+    {
+        Unity::DebugLog("Device expected");
+        return DummyDevice;
+    }
+    return *mDevice;
+}
 
 void TFastTexture::SetState(TFastVideoState::Type State)
 {
@@ -51,16 +65,17 @@ void TFastTexture::SetState(TFastVideoState::Type State)
 	Unity::DebugLog( Debug );
 }
 
-	
 void TFastTexture::DeleteTargetTexture()
 {
-	mTargetTexture.Release();
+    auto& Device = GetDevice();
+	Device.DeleteTexture( mTargetTexture );
 }
 
 void TFastTexture::DeleteDynamicTexture()
 {
 	ofMutex::ScopedLock lock( mDynamicTextureLock );
-	mDynamicTexture.Release();
+    auto& Device = GetDevice();
+	Device.DeleteTexture( mDynamicTexture );
 
 	//	update decode-to-format
 	if ( mDecoderThread )
@@ -79,12 +94,13 @@ void TFastTexture::DeleteDecoderThread()
 	}
 }
 
-bool TFastTexture::CreateUploadThread(TUnityDevice_DX11& Device)
+bool TFastTexture::CreateUploadThread()
 {
 	if ( mUploadThread )
 		return true;
 
 	//	alloc new one
+    auto& Device = GetDevice();
 	mUploadThread = ofPtr<TFastTextureUploadThread>( new TFastTextureUploadThread( *this, Device ) );
 	mUploadThread->startThread( true, true );
 	return true;
@@ -101,8 +117,9 @@ void TFastTexture::DeleteUploadThread()
 }
 
 
-bool TFastTexture::CreateDynamicTexture(TUnityDevice_DX11& Device)
+bool TFastTexture::CreateDynamicTexture()
 {
+    auto& Device = GetDevice();
 	//	dynamic texture needs to be same size as target texture
 	if ( !mTargetTexture )
 	{
@@ -164,12 +181,14 @@ bool TFastTexture::CreateDynamicTexture(TUnityDevice_DX11& Device)
 		}
 	}
 
-	CreateUploadThread( Device );
+	CreateUploadThread();
 	return true;
 }
 
-bool TFastTexture::SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& Device)
+bool TFastTexture::SetTexture(Unity::TTexture TargetTexture)
 {
+    auto& Device = GetDevice();
+
 	//	release existing texture
 	DeleteTargetTexture();
 
@@ -179,15 +198,15 @@ bool TFastTexture::SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& 
 	{
 		auto TextureMeta = Device.GetTextureMeta( TargetTexture );
 		BufferString<100> Debug;
-		Debug << "Assigned target texture; " << TextureMeta.mWidth << "x" << TextureMeta.mHeight << "x" << TextureMeta.GetChannels();
+		Debug << "Assigning target texture; " << TextureMeta.mWidth << "x" << TextureMeta.mHeight << "x" << TextureMeta.GetChannels();
 		Unity::DebugLog( Debug );
 	}
 
-	mTargetTexture.Set( TargetTexture, true );
+	mTargetTexture = TargetTexture;
 
 	//	alloc dynamic texture
-	CreateDynamicTexture( Device );
-	CreateUploadThread( Device );
+	CreateDynamicTexture();
+	CreateUploadThread();
 	
 	//	pre-alloc pool
 	TFrameMeta FrameMeta = Device.GetTextureMeta( mTargetTexture );
@@ -196,8 +215,10 @@ bool TFastTexture::SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& 
 	return true;
 }
 
-bool TFastTexture::SetVideo(const std::wstring& Filename,TUnityDevice_DX11& Device)
+bool TFastTexture::SetVideo(const std::wstring& Filename)
 {
+    auto& Device = GetDevice();
+
 	//	reset video state
 	SetState( TFastVideoState::FirstFrame );
 	SetFrameTime( SoyTime() );
@@ -245,16 +266,18 @@ bool TFastTexture::SetVideo(const std::wstring& Filename,TUnityDevice_DX11& Devi
 	return true;
 }
 
-bool TFastTexture::UpdateDynamicTexture(TUnityDevice_DX11& Device)
+bool TFastTexture::UpdateDynamicTexture()
 {
 	ofScopeTimerWarning Timer(__FUNCTION__,2);
 
+    auto& Device = GetDevice();
+    
 	//	push latest frame to texture
 	if ( !mTargetTexture )
 		return false;
 
 	//	might need to setup dynamic texture still
-	if ( !CreateDynamicTexture(Device) )
+	if ( !CreateDynamicTexture() )
 		return false;
 
 	{
@@ -311,7 +334,7 @@ bool TFastTexture::UpdateDynamicTexture(TUnityDevice_DX11& Device)
 	return true;
 }
 
-void TFastTexture::OnPostRender(TUnityDevice_DX11& Device)
+void TFastTexture::OnPostRender()
 {
 	ofScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock RenderLock(mRenderLock);
@@ -342,6 +365,7 @@ void TFastTexture::OnPostRender(TUnityDevice_DX11& Device)
 
 
 	//	copy to GPU for usage
+    auto& Device = GetDevice();
 	if ( !Device.CopyTexture( mTargetTexture, mDynamicTexture ) )
 		return;
 	mDynamicTextureChanged = false;
@@ -436,7 +460,7 @@ void TFastTextureUploadThread::threadedFunction()
 		sleep(1);
 
 		//	update texture
-		mParent.UpdateDynamicTexture( mDevice );
+		mParent.UpdateDynamicTexture();
 	}
 }
 

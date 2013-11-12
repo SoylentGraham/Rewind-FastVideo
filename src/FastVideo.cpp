@@ -98,12 +98,10 @@ void TFastVideo::OnPostRender()
 	if ( !mDevice )
 		return;
 
-	auto& Device = *mDevice;
-	
 	for ( int i=0;	i<mInstances.GetSize();	i++ )
 	{
 		auto& Instance = *mInstances[i];
-		Instance.OnPostRender(Device);
+		Instance.OnPostRender();
 	}
 }
 
@@ -149,11 +147,8 @@ extern "C" EXPORT_API bool SetTexture(Unity::ulong Instance,void* pTexture)
 	if ( !pInstance )
 		return false;
 
-	if ( !gFastVideo.IsDeviceValid() )
-		return false;
-
-	auto* Texture = static_cast<ID3D11Texture2D*>( pTexture );
-	return pInstance->SetTexture( Texture, gFastVideo.GetDevice() );
+    Unity::TTexture Texture( pTexture );
+	return pInstance->SetTexture( Texture );
 }
 
 extern "C" EXPORT_API bool SetVideo(Unity::ulong Instance,const wchar_t* pFilename,int Length)
@@ -167,7 +162,7 @@ extern "C" EXPORT_API bool SetVideo(Unity::ulong Instance,const wchar_t* pFilena
 	for ( int i=0;	i<Length;	i++ )
 		Filename += pFilename[i];
 
-	return pInstance->SetVideo( Filename, gFastVideo.GetDevice() );
+	return pInstance->SetVideo( Filename );
 }
 
 
@@ -212,6 +207,9 @@ extern "C" void EXPORT_API UnitySetGraphicsDevice(void* device, int deviceType, 
 	case Unity::TGfxDeviceEvent::Initialize:
 		gFastVideo.AllocDevice( DeviceType, device );
 		break;
+
+    default:
+        break;
 	};
 
 }

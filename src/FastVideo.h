@@ -50,7 +50,7 @@ public:
 	bool				AllocDevice(Unity::TGfxDevice::Type DeviceType,void* Device);
 	bool				FreeDevice(Unity::TGfxDevice::Type DeviceType);
 	bool				IsDeviceValid()			{	return mDevice!=nullptr;	}
-	TUnityDevice_DX11&	GetDevice()				{	return *mDevice;	}
+	TUnityDevice&       GetDevice()				{	return *mDevice;	}
 
 private:
 	int					FindInstanceIndex(SoyRef InstanceRef);
@@ -59,7 +59,7 @@ private:
 	ofMutex						mInstancesLock;
 	SoyRef						mNextInstanceRef;
 	Array<TFastTexture*>		mInstances;
-	ofPtr<TUnityDevice_DX11>	mDevice;
+	ofPtr<TUnityDevice>         mDevice;
 	TFramePool					mFramePool;
 };
 

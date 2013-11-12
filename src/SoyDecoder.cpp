@@ -229,7 +229,7 @@ void TDecodeThread::threadedFunction()
 {
 	while ( isThreadRunning() )
 	{
-		Sleep(1);
+        ofThread::sleep(1);
 
 		//	if buffer is filled, stop (don't buffer too many frames)
 		bool DoDecode = !mFrameBuffer.IsFull();
@@ -571,7 +571,6 @@ bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimestamp,bo
 #endif
 }
 
-	extern AVHWAccel ff_h264_dxva2_hwaccel;
 
 
 bool TDecoder::Init(const std::wstring& Filename)

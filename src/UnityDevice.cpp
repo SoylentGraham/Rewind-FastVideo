@@ -17,6 +17,7 @@ DXGI_FORMAT GetFormat(TFrameMeta Meta)
 }
 #endif
 
+#if defined(ENABLE_DX11)
 TFrameFormat::Type GetFormat(DXGI_FORMAT Format)
 {
 	//	return 0 if none supported
@@ -29,7 +30,8 @@ TFrameFormat::Type GetFormat(DXGI_FORMAT Format)
 		return TFrameFormat::Invalid;
 	};
 }
-	
+#endif
+
 ofPtr<TUnityDevice> Unity::AllocDevice(Unity::TGfxDevice::Type Type,void* Device)
 {
 	//	only support one atm
@@ -43,6 +45,8 @@ ofPtr<TUnityDevice> Unity::AllocDevice(Unity::TGfxDevice::Type Type,void* Device
 				pDevice = ofPtr<TUnityDevice>( new TUnityDevice_DX11( static_cast<ID3D11Device*>(Device) ) );
 			break;
 #endif
+        default:
+            break;
 	};
 
 	return pDevice;
@@ -133,6 +137,7 @@ BufferString<100> Unity::TGfxDevice::ToString(Unity::TGfxDevice::Type DeviceType
 }
 
 
+#if defined(ENABLE_DX11)
 bool TUnityDevice_DX11::CopyTexture(TAutoRelease<ID3D11Texture2D>& Texture,const TFramePixels& Frame,bool Blocking)
 {
 	if ( !Texture )
@@ -190,9 +195,14 @@ bool TUnityDevice_DX11::CopyTexture(TAutoRelease<ID3D11Texture2D>& Texture,const
 
 	return true;
 }
+#endif
 
-bool TUnityDevice_DX11::CopyTexture(TAutoRelease<ID3D11Texture2D>& DstTexture,TAutoRelease<ID3D11Texture2D>& SrcTexture)
+
+#if defined(ENABLE_DX11)
+bool TUnityDevice_DX11::CopyTexture(TAutoRelease<ID3D11Texture2D>& DstTextureU,TAutoRelease<ID3D11Texture2D>& SrcTextureU)
 {
+    auto* DstTexture = static_cast<Unity::TTexture_DX11&>( DstTexutreU ).GetTexture();
+    auto* SrcTexture = static_cast<Unity::TTexture_DX11&>( SrcTexutreU ).GetTexture();
 	if ( !DstTexture || !SrcTexture )
 		return false;
 
@@ -216,5 +226,6 @@ bool TUnityDevice_DX11::CopyTexture(TAutoRelease<ID3D11Texture2D>& DstTexture,TA
 
 	return true;
 }
+#endif
 
 

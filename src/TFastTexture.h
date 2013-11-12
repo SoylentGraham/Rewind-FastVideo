@@ -26,7 +26,7 @@ namespace TFastVideoState
 class TFastTextureUploadThread : public SoyThread
 {
 public:
-	TFastTextureUploadThread(TFastTexture& Parent,TUnityDevice_DX11& Device) :
+	TFastTextureUploadThread(TFastTexture& Parent,TUnityDevice& Device) :
 		SoyThread	( "TFastTextureUploadThread" ),
 		mParent		( Parent ),
 		mDevice		( Device )
@@ -37,7 +37,7 @@ public:
 
 public:
 	TFastTexture&		mParent;
-	TUnityDevice_DX11&	mDevice;
+	TUnityDevice&       mDevice;
 };
 
 //	instance of a video texture
@@ -50,20 +50,21 @@ public:
 	SoyRef				GetRef() const			{	return mRef;	}
 
 	void				OnDynamicTextureChanged(SoyTime Timestamp);
-	void				OnPostRender(TUnityDevice_DX11& Device);	//	callback from unity render thread
+	void				OnPostRender();	//	callback from unity render thread
 
-	bool				SetTexture(Unity::TTexture TargetTexture,TUnityDevice& Device);
-	bool				SetVideo(const std::wstring& Filename,TUnityDevice& Device);
+	bool				SetTexture(Unity::TTexture TargetTexture);
+	bool				SetVideo(const std::wstring& Filename);
 	void				SetState(TFastVideoState::Type State);
-
+	void				SetDevice(TUnityDevice* Device);
+   
 	SoyTime				GetFrameTime();
 	void				SetFrameTime(SoyTime Time);
 
-	bool				UpdateDynamicTexture(TUnityDevice_DX11& Device);
+	bool				UpdateDynamicTexture();
 
 private:
-	bool				CreateDynamicTexture(TUnityDevice_DX11& Device);
-	bool				CreateUploadThread(TUnityDevice_DX11& Device);
+	bool				CreateDynamicTexture();
+	bool				CreateUploadThread();
 
 	void				DeleteTargetTexture();
 	void				DeleteDynamicTexture();
@@ -71,6 +72,8 @@ private:
 	void				DeleteUploadThread();
 
 	void				UpdateFrameTime();
+  
+    TUnityDevice&       GetDevice();
 
 private:
 	ofMutex					mRenderLock;		//	lock while rendering (from a different thread) so we don't deallocate mid-render
@@ -81,6 +84,7 @@ private:
 	SoyRef					mRef;
 
 	TFramePool&						mFramePool;
+    TUnityDevice*                   mDevice;
 
 	ofMutex							mDynamicTextureLock;
 	Unity::TTexture                 mDynamicTexture;

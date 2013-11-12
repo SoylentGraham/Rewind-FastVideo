@@ -152,8 +152,6 @@ bool TFramePool::Free(TFramePixels* pFrame)
 	ofScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock lock( mPoolLock );
 
-	bool Removed = false;
-
 	//	find in used pool
 	int UsedIndex = mUsedPool.FindIndex( pFrame );
 	if ( UsedIndex == -1 )

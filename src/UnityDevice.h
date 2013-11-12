@@ -15,9 +15,11 @@
 #endif
 
 
-class TUnityDevice_DX11;
 class TUnityDevice;
-
+class TUnityDevice_Dummy;
+#if defined(ENABLE_DIRECTX11)
+class TUnityDevice_DX11;
+#endif
 
 
 
@@ -126,17 +128,12 @@ namespace Unity
 class Unity::TTexture
 {
 public:
-    TTexture() :
-        mObject     (nullptr)
-    {
-    }
-    virtual bool        IsValid() const {   return mObject != nullptr;  }
- 
-protected:
-    TTexture(void* Object) :
+    TTexture(void* Object=nullptr) :
         mObject     (Object)
     {
     }
+    virtual bool        IsValid() const {   return mObject != nullptr;  }
+	operator            void*()			{	return mObject;	}
 
 protected:
     void*               mObject;
@@ -173,9 +170,14 @@ public:
 	TUnityDevice()				{}
 	virtual ~TUnityDevice()		{}
 
-	virtual bool		IsValid()=0;
-	TFrameMeta          GetTextureMeta(Unity::TTexture* Texture)    {   return Texture ? GetTextureMeta(*Texture) : TFrameMeta();   }
-	virtual TFrameMeta	GetTextureMeta(Unity::TTexture& Texture)=0;
+	TFrameMeta              GetTextureMeta(Unity::TTexture* Texture)    {   return Texture ? GetTextureMeta(*Texture) : TFrameMeta();   }
+    
+	virtual bool            IsValid()=0;
+    virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta)=0;
+    virtual bool            DeleteTexture(Unity::TTexture Texture)=0;
+	virtual TFrameMeta      GetTextureMeta(Unity::TTexture Texture)=0;
+	virtual bool            CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking)=0;
+	virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TTexture SrcTexture)=0;
 };
 
 
@@ -186,21 +188,36 @@ class TUnityDevice_DX11 : public TUnityDevice
 public:
 	TUnityDevice_DX11(ID3D11Device* Device);
     
-	virtual bool		IsValid()	{	return true;	}
-
-	virtual TFrameMeta	GetTextureMeta(Unity::TTexture& Texture);
-	bool				CopyTexture(TAutoRelease<ID3D11Texture2D>& Texture,const TFramePixels& Frame,bool Blocking);
-	bool				CopyTexture(TAutoRelease<ID3D11Texture2D>& DstTexture,TAutoRelease<ID3D11Texture2D>& SrcTexture);
-
-	ID3D11Device&		GetDevice()		{	assert( mDevice );	return *mDevice;	}
-	
-	TAutoRelease<ID3D11Texture2D>	AllocTexture(TFrameMeta FrameMeta);
+	virtual bool            IsValid()	{	return true;	}
+    virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta);
+    virtual bool            DeleteTexture(Unity::TTexture Texture);
+	virtual TFrameMeta      GetTextureMeta(Unity::TTexture Texture);
+	virtual bool            CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking);
+	virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TTexture SrcTexture);
+    
+	ID3D11Device&           GetDevice()		{	assert( mDevice );	return *mDevice;	}
     
 private:
 	ofMutex						mContextLock;	//	DX11 context is not threadsafe
 	TAutoRelease<ID3D11Device>	mDevice;
 };
 #endif
+
+
+
+class TUnityDevice_Dummy : public TUnityDevice
+{
+public:
+	TUnityDevice_Dummy()    {}
+    
+	virtual bool            IsValid()	{	return false;	}
+    virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta)          {   return Unity::TTexture();   }
+    virtual bool            DeleteTexture(Unity::TTexture Texture)      {   return false;   }
+	virtual TFrameMeta      GetTextureMeta(Unity::TTexture Texture)     {   return TFrameMeta();    }
+	virtual bool            CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking)    {   return false;   }
+    virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TTexture SrcTexture)        {   return false;   }
+};
+
 
 
 

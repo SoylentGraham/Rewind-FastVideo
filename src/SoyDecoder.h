@@ -3,8 +3,9 @@
 #include <SoyThread.h>
 
 
-
+#if defined(TARGET_WINDOWS)
 #define ENABLE_DECODER_LIBAV
+#endif
 //#define ENABLE_DVXA
 
 
