@@ -2,7 +2,7 @@
 #include "FastVideo.h"
 
 
-
+#if defined(ENABLE_DX11)
 DXGI_FORMAT GetFormat(TFrameMeta Meta)
 {
 	if ( Meta.mChannels == 4 )
@@ -14,32 +14,37 @@ DXGI_FORMAT GetFormat(TFrameMeta Meta)
 
 	return DXGI_FORMAT_UNKNOWN;
 }
+#endif
 
 	
-ofPtr<TUnityDevice_DX11> Unity::AllocDevice(Unity::TGfxDevice::Type Type,void* Device)
+ofPtr<TUnityDevice> Unity::AllocDevice(Unity::TGfxDevice::Type Type,void* Device)
 {
 	//	only support one atm
-	ofPtr<TUnityDevice_DX11> pDevice;
+	ofPtr<TUnityDevice> pDevice;
 
 	switch ( Type )
 	{
+#if defined(ENABLE_DX11)
 		case Unity::TGfxDevice::D3D11:
 			if ( Device )
-				pDevice = ofPtr<TUnityDevice_DX11>( new TUnityDevice_DX11( static_cast<ID3D11Device*>(Device) ) );
+				pDevice = ofPtr<TUnityDevice>( new TUnityDevice_DX11( static_cast<ID3D11Device*>(Device) ) );
 			break;
+#endif
 	};
 
 	return pDevice;
 }
 
 
+#if defined(ENABLE_DX11)
 TUnityDevice_DX11::TUnityDevice_DX11(ID3D11Device* Device) :
 	mDevice	( Device, true )
 {
 }
+#endif
 
 
-
+#if defined(ENABLE_DX11)
 TAutoRelease<ID3D11Texture2D> TUnityDevice_DX11::AllocTexture(TFrameMeta FrameMeta)
 {
 	if ( !FrameMeta.IsValid() )
@@ -73,9 +78,10 @@ TAutoRelease<ID3D11Texture2D> TUnityDevice_DX11::AllocTexture(TFrameMeta FrameMe
 	TAutoRelease<ID3D11Texture2D> Texture( pTexture, true );
 	return Texture;
 }
+#endif
 
 
-
+#if defined(ENABLE_DX11)
 TFrameMeta TUnityDevice_DX11::GetTextureMeta(ID3D11Texture2D* Texture)
 {
 	if ( !Texture )
@@ -88,4 +94,7 @@ TFrameMeta TUnityDevice_DX11::GetTextureMeta(ID3D11Texture2D* Texture)
 	TFrameMeta TextureMeta( Desc.Width, Desc.Height, 0 );
 	return TextureMeta;
 }
+#endif
+
+
 

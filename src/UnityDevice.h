@@ -1,8 +1,18 @@
 #pragma once
 
+#if defined(TARGET_WINDOWS)
+#define ENABLE_DIRECTX11
+#elif defined(TARGET_OSX)
+#define ENABLE_OPENGL
+#endif
+
 #include <ofxSoylent.h>
-#include <d3d11.h>
 #include "TFrame.h"
+
+#if defined(ENABLE_DIRECTX11)
+#include <d3d11.h>
+#else
+#endif
 
 
 class TUnityDevice_DX11;
@@ -105,9 +115,47 @@ namespace Unity
 			AfterReset,
 		};
 	};
-
-	ofPtr<TUnityDevice_DX11>	AllocDevice(Unity::TGfxDevice::Type Type,void* Device);
+    
+	ofPtr<TUnityDevice> AllocDevice(Unity::TGfxDevice::Type Type,void* Device);
+    
+    class TTexture;
+    class TTexture_DX11;
+    class TTexture_GL;
 };
+
+class Unity::TTexture
+{
+public:
+    TTexture() :
+        mObject     (nullptr)
+    {
+    }
+    virtual bool        IsValid() const {   return mObject != nullptr;  }
+ 
+protected:
+    TTexture(void* Object) :
+        mObject     (Object)
+    {
+    }
+
+protected:
+    void*               mObject;
+};
+
+
+#if defined(ENABLE_DX11)
+class Unity::TTexture_DX11 : public Unity::TTexture
+{
+public:
+    TTexture_DX11() {}
+    TTexture_DX11(ID3D11Texture2D* Texture) :
+        TTexture    ( Texture )
+    {
+    }
+    
+    ID3D11Texture2D*    GetTexture()    {   return reinterpret_cast<ID3D11Texture2D*>( mObject );   }
+};
+#endif
 
 
 
@@ -119,23 +167,37 @@ public:
 	virtual ~TUnityDevice()		{}
 
 	virtual bool		IsValid()=0;
-	virtual TFrameMeta	GetTextureMeta(ID3D11Texture2D* Texture)=0;
+	TFrameMeta          GetTextureMeta(Unity::TTexture* Texture)    {   return Texture ? GetTextureMeta(*Texture) : TFrameMeta();   }
+	virtual TFrameMeta	GetTextureMeta(Unity::TTexture& Texture)=0;
 };
 
 
+
+#if defined(ENABLE_DX11)
 class TUnityDevice_DX11 : public TUnityDevice
 {
 public:
 	TUnityDevice_DX11(ID3D11Device* Device);
-
+    
 	virtual bool		IsValid()	{	return true;	}
-	virtual TFrameMeta	GetTextureMeta(ID3D11Texture2D* Texture);
-
+	virtual TFrameMeta	GetTextureMeta(Unity::TTexture& Texture);
+    
 	ID3D11Device&		GetDevice()		{	assert( mDevice );	return *mDevice;	}
 	
 	TAutoRelease<ID3D11Texture2D>	AllocTexture(TFrameMeta FrameMeta);
-
+    
 private:
 	TAutoRelease<ID3D11Device>	mDevice;
 };
+#endif
+
+
+
+
+
+
+
+
+
+
 

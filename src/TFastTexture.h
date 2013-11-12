@@ -5,8 +5,10 @@
 #include "UnityDevice.h"
 
 
+#if defined(ENABLE_DX11)
 interface ID3D11Texture2D;
 class TUnityDevice_DX11;
+#endif
 
 //	instance of a video texture
 class TFastTexture
@@ -19,7 +21,7 @@ public:
 
 	void				OnPostRender(TUnityDevice_DX11& Device);	//	callback from unity render thread
 
-	bool				SetTexture(ID3D11Texture2D* TargetTexture,TUnityDevice_DX11& Device);
+	bool				SetTexture(Unity::TTexture TargetTexture,TUnityDevice& Device);
 	bool				SetVideo(const std::wstring& Filename);
 
 private:
@@ -31,8 +33,8 @@ private:
 
 private:
 	TFramePool&				mFramePool;
-	TAutoRelease<ID3D11Texture2D>	mDynamicTexture;
-	TAutoRelease<ID3D11Texture2D>	mTargetTexture;
+    Unity::TTexture         mDynamicTexture;
+    Unity::TTexture         mTargetTexture;
 	SoyRef					mRef;
 	ofPtr<TDecodeThread>	mDecoderThread;
 };
