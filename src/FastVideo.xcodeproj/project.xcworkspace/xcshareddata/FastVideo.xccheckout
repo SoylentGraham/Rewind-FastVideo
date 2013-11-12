@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>EDBA61BA-BCBA-4C2C-B6FF-D9179B144F26</string>
+	<key>IDESourceControlProjectName</key>
+	<string>FastVideo</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>0B10E642-E4DC-427F-BADA-BE20BDD59160</key>
+		<string>https://github.com/SoylentGraham/ofxSoylent.git</string>
+		<key>EBAA337B-F8B1-4CF9-A8A5-2D8CDAC27CE1</key>
+		<string>https://github.com/SoylentGraham/Rewind-FastVideo.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>src/FastVideo.xcodeproj/project.xcworkspace</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>0B10E642-E4DC-427F-BADA-BE20BDD59160</key>
+		<string>../../../../ofxSoylent</string>
+		<key>EBAA337B-F8B1-4CF9-A8A5-2D8CDAC27CE1</key>
+		<string>../../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/SoylentGraham/Rewind-FastVideo.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>110</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>EBAA337B-F8B1-4CF9-A8A5-2D8CDAC27CE1</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>0B10E642-E4DC-427F-BADA-BE20BDD59160</string>
+			<key>IDESourceControlWCCName</key>
+			<string>ofxSoylent</string>
+		</dict>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>EBAA337B-F8B1-4CF9-A8A5-2D8CDAC27CE1</string>
+			<key>IDESourceControlWCCName</key>
+			<string>Rewind-FastVideo</string>
+		</dict>
+	</array>
+</dict>
+</plist>

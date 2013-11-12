@@ -60,7 +60,7 @@ TFramePixels* TFramePool::Alloc(TFrameMeta FrameMeta)
 		{
 			FreeFrame = new TFramePixels( FrameMeta );
 			BufferString<1000> Debug;
-			Debug << "Allocating new block; " << PtrToInt(FreeFrame) << " pool size; " << mPool.size();
+			Debug << "Allocating new block; " << " pool size; " << mPool.size();
 			Unity::DebugLog( Debug );
 
 			if ( FreeFrame )

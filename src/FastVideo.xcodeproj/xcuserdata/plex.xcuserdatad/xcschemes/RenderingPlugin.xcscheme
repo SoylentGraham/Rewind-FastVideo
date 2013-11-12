@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "8D57630D048677EA00EA77CD"
-               BuildableName = "RenderingPlugin.bundle"
+               BuildableName = "FastVideo.bundle"
                BlueprintName = "FastVideo"
                ReferencedContainer = "container:FastVideo.xcodeproj">
             </BuildableReference>

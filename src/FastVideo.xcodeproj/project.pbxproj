@@ -220,6 +220,8 @@
 /* Begin PBXProject section */
 		089C1669FE841209C02AAC07 /* Project object */ = {
 			isa = PBXProject;
+			attributes = {
+			};
 			buildConfigurationList = 1DEB911E08733D790010E9CD /* Build configuration list for PBXProject "FastVideo" */;
 			compatibilityVersion = "Xcode 3.1";
 			developmentRegion = English;
@@ -296,6 +298,7 @@
 				HEADER_SEARCH_PATHS = ../../ofxSoylent/src;
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
+				MACOSX_DEPLOYMENT_TARGET = 10.7;
 				PRODUCT_NAME = FastVideo;
 				WRAPPER_EXTENSION = bundle;
 			};
@@ -316,6 +319,7 @@
 				HEADER_SEARCH_PATHS = ../../ofxSoylent/src;
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
+				MACOSX_DEPLOYMENT_TARGET = 10.7;
 				PRODUCT_NAME = FastVideo;
 				WRAPPER_EXTENSION = bundle;
 			};
