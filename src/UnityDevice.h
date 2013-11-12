@@ -1,17 +1,25 @@
 #pragma once
 
 #if defined(TARGET_WINDOWS)
-#define ENABLE_DIRECTX11
+	#define ENABLE_DIRECTX11
 #elif defined(TARGET_OSX)
-#define ENABLE_OPENGL
+	#define ENABLE_OPENGL
 #endif
 
 #include <ofxSoylent.h>
 #include "TFrame.h"
 
 #if defined(ENABLE_DIRECTX11)
-#include <d3d11.h>
-#else
+	#include <d3d11.h>
+#endif
+
+#if defined(ENABLE_OPENGL)
+	#if defined(TARGET_WINDOWS)
+		#include <gl/GL.h>
+	#else
+		#include <Opengl/gl.h>
+		#include <OpenGL/OpenGL.h>
+	#endif
 #endif
 
 
@@ -19,6 +27,9 @@ class TUnityDevice;
 class TUnityDevice_Dummy;
 #if defined(ENABLE_DIRECTX11)
 class TUnityDevice_DX11;
+#endif
+#if defined(ENABLE_OPENGL)
+class TUnityDevice_Opengl;
 #endif
 
 
@@ -122,21 +133,33 @@ namespace Unity
     
     class TTexture;
     class TTexture_DX11;
-    class TTexture_GL;
+    class TTexture_Opengl;
 };
 
 class Unity::TTexture
 {
 public:
-    TTexture(void* Object=nullptr) :
-        mObject     (Object)
+    TTexture() :
+		mObject     (nullptr),
+		mId			( 0 )
     {
     }
-    virtual bool        IsValid() const {   return mObject != nullptr;  }
-	operator            void*()			{	return mObject;	}
+    explicit TTexture(void* Object) :
+		mObject     (Object),
+		mId			( 0 )
+    {
+    }
+	explicit TTexture(uint32 Id) :
+		mObject     (nullptr),
+		mId			( Id )
+    {
+    }
+    virtual bool        IsValid() const {   return (mObject != nullptr) || (mId!=0);  }
+	operator            bool()			{	return IsValid();	}
 
 protected:
-    void*               mObject;
+    void*               mObject;	//	pointer to type in dx
+	uint32				mId;		//	id for opengl
 };
 
 template<class STRING>
@@ -151,13 +174,27 @@ inline STRING& operator<<(STRING& str,const Unity::TGfxDevice::Type& Value)
 class Unity::TTexture_DX11 : public Unity::TTexture
 {
 public:
-    TTexture_DX11() {}
-    TTexture_DX11(ID3D11Texture2D* Texture) :
+    TTexture_DX11(ID3D11Texture2D* Texture=nullptr) :
         TTexture    ( Texture )
     {
     }
     
     ID3D11Texture2D*    GetTexture()    {   return reinterpret_cast<ID3D11Texture2D*>( mObject );   }
+};
+#endif
+
+
+#if defined(ENABLE_OPENGL)
+class Unity::TTexture_Opengl : public Unity::TTexture
+{
+public:
+    TTexture_Opengl(GLuint Texture=0) :
+		TTexture    ( Texture )
+    {
+    }
+    
+    GLuint			GetTexture()    {   return static_cast<GLuint>( mId );   }
+    bool			BindTexture();
 };
 #endif
 
@@ -219,6 +256,24 @@ public:
 };
 
 
+
+
+#if defined(ENABLE_OPENGL)
+class TUnityDevice_Opengl : public TUnityDevice
+{
+public:
+	TUnityDevice_Opengl();
+    
+	virtual bool            IsValid()	{	return true;	}
+    virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta);
+    virtual bool            DeleteTexture(Unity::TTexture Texture);
+	virtual TFrameMeta      GetTextureMeta(Unity::TTexture Texture);
+	virtual bool            CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking);
+	virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TTexture SrcTexture);
+ 
+private:
+};
+#endif
 
 
 

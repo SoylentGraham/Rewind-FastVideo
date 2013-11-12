@@ -141,7 +141,7 @@ bool TFastTexture::CreateDynamicTexture()
 	}
 
 	//	need to create a new one
-	bool HadTexure = (mDynamicTexture!=nullptr);
+	bool HadTexure = (mDynamicTexture);
 	if ( !mDynamicTexture )
 	{
 		mDynamicTexture = Device.AllocTexture( TargetTextureMeta );
