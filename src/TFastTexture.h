@@ -5,12 +5,6 @@
 #include "UnityDevice.h"
 
 
-#if defined(ENABLE_DX11)
-interface ID3D11Texture2D;
-class TUnityDevice_DX11;
-#endif
-
-
 namespace TFastVideoState
 {
 	enum Type
@@ -55,7 +49,7 @@ public:
 	bool				SetTexture(Unity::TTexture TargetTexture);
 	bool				SetVideo(const std::wstring& Filename);
 	void				SetState(TFastVideoState::Type State);
-	void				SetDevice(TUnityDevice* Device);
+	void				SetDevice(ofPtr<TUnityDevice> Device);
    
 	SoyTime				GetFrameTime();
 	void				SetFrameTime(SoyTime Time);
@@ -83,15 +77,15 @@ private:
 	TFrameBuffer			mFrameBuffer;
 	SoyRef					mRef;
 
-	TFramePool&						mFramePool;
-    TUnityDevice*                   mDevice;
+	TFramePool&				mFramePool;
+	ofPtr<TUnityDevice>		mDevice;
 
-	ofMutex							mDynamicTextureLock;
-	Unity::TTexture                 mDynamicTexture;
-	SoyTime							mDynamicTextureFrame;	//	frame in current dynamic texture
-	bool							mDynamicTextureChanged;	//	locked via mDynamicTextureLock
+	ofMutex					mDynamicTextureLock;
+	Unity::TTexture			mDynamicTexture;
+	SoyTime					mDynamicTextureFrame;	//	frame in current dynamic texture
+	bool					mDynamicTextureChanged;	//	locked via mDynamicTextureLock
 
-	Unity::TTexture                 mTargetTexture;
+	Unity::TTexture					mTargetTexture;
 	ofPtr<TDecodeThread>			mDecoderThread;
 	ofPtr<TFastTextureUploadThread>	mUploadThread;
 };

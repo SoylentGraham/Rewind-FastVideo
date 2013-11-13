@@ -21,7 +21,6 @@ const char* TFastVideoState::ToString(TFastVideoState::Type State)
 
 
 TFastTexture::TFastTexture(SoyRef Ref,TFramePool& FramePool) :
-    mDevice         (nullptr),
 	mRef			( Ref ),
 	mFrameBuffer	( DEFAULT_MAX_FRAME_BUFFERS, FramePool ),
 	mFramePool		( FramePool ),
@@ -49,6 +48,18 @@ TUnityDevice& TFastTexture::GetDevice()
         return DummyDevice;
     }
     return *mDevice;
+}
+
+void TFastTexture::SetDevice(ofPtr<TUnityDevice> Device)
+{
+	//	unset old device
+	DeleteTargetTexture();
+	DeleteDynamicTexture();
+	mDevice.reset();
+
+	//	set new device
+	mDevice = Device;
+	CreateDynamicTexture();
 }
 
 void TFastTexture::SetState(TFastVideoState::Type State)

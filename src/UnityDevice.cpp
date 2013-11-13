@@ -71,7 +71,7 @@ ofPtr<TUnityDevice> Unity::AllocDevice(Unity::TGfxDevice::Type Type,void* Device
 #if defined(ENABLE_DX11)
 		case Unity::TGfxDevice::D3D11:
 			if ( Device )
-				pDevice = ofPtr<TUnityDevice>( new TUnityDevice_DX11( static_cast<ID3D11Device*>(Device) ) );
+				pDevice = ofPtr<TUnityDevice>( new TUnityDevice_Dx11( static_cast<ID3D11Device*>(Device) ) );
 			break;
 #endif
 #if defined(ENABLE_OPENGL)
@@ -88,7 +88,7 @@ ofPtr<TUnityDevice> Unity::AllocDevice(Unity::TGfxDevice::Type Type,void* Device
 
 
 #if defined(ENABLE_DX11)
-TUnityDevice_DX11::TUnityDevice_DX11(ID3D11Device* Device) :
+TUnityDevice_Dx11::TUnityDevice_Dx11(ID3D11Device* Device) :
 	mDevice	( Device, true )
 {
 }
@@ -96,12 +96,12 @@ TUnityDevice_DX11::TUnityDevice_DX11(ID3D11Device* Device) :
 
 
 #if defined(ENABLE_DX11)
-TAutoRelease<ID3D11Texture2D> TUnityDevice_DX11::AllocTexture(TFrameMeta FrameMeta)
+Unity::TTexture TUnityDevice_Dx11::AllocTexture(TFrameMeta FrameMeta)
 {
 	if ( !FrameMeta.IsValid() )
-		return TAutoRelease<ID3D11Texture2D>();
+		return Unity::TTexture();
 	if ( !mDevice )
-		return TAutoRelease<ID3D11Texture2D>();
+		return Unity::TTexture();
 
 	D3D11_TEXTURE2D_DESC Desc;
 	memset(&Desc, 0, sizeof(Desc));
@@ -126,20 +126,35 @@ TAutoRelease<ID3D11Texture2D> TUnityDevice_DX11::AllocTexture(TFrameMeta FrameMe
 		Unity::DebugLog("Failed to create dynamic texture");
 	}
 	
-	TAutoRelease<ID3D11Texture2D> Texture( pTexture, true );
-	return Texture;
+	//	gr: need to manage textures on device
+	//TAutoRelease<ID3D11Texture2D> Texture( pTexture, true );
+	pTexture->AddRef();
+	return Unity::TTexture( pTexture );
 }
 #endif
 
 
 #if defined(ENABLE_DX11)
-TFrameMeta TUnityDevice_DX11::GetTextureMeta(ID3D11Texture2D* Texture)
+bool TUnityDevice_Dx11::DeleteTexture(Unity::TTexture Texture)
 {
-	if ( !Texture )
+	//	gr: need to manage textures on device
+	auto* TextureDx = static_cast<Unity::TTexture_Dx11&>( Texture).GetTexture();
+	if ( !TextureDx )
+		return false;
+	TextureDx->Release();
+	return true;
+}
+#endif
+
+#if defined(ENABLE_DX11)
+TFrameMeta TUnityDevice_Dx11::GetTextureMeta(Unity::TTexture Texture)
+{
+	auto* TextureDx = static_cast<Unity::TTexture_Dx11&>( Texture).GetTexture();
+	if ( !TextureDx )
 		return TFrameMeta();
 
 	D3D11_TEXTURE2D_DESC Desc;
-	Texture->GetDesc( &Desc );
+	TextureDx->GetDesc( &Desc );
 
 	auto Format = GetFormat( Desc.Format );
 	TFrameMeta TextureMeta( Desc.Width, Desc.Height, Format );
@@ -172,8 +187,9 @@ BufferString<100> Unity::TGfxDevice::ToString(Unity::TGfxDevice::Type DeviceType
 
 
 #if defined(ENABLE_DX11)
-bool TUnityDevice_DX11::CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking)
+bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture TextureU,const TFramePixels& Frame,bool Blocking)
 {
+	auto* Texture = static_cast<Unity::TTexture_Dx11&>( TextureU ).GetTexture();
 	if ( !Texture )
 		return false;
 
@@ -233,10 +249,10 @@ bool TUnityDevice_DX11::CopyTexture(Unity::TTexture Texture,const TFramePixels& 
 
 
 #if defined(ENABLE_DX11)
-bool TUnityDevice_DX11::CopyTexture(Unity::TTexture DstTextureU,Unity::TTexture SrcTextureU)
+bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture DstTextureU,Unity::TTexture SrcTextureU)
 {
-    auto* DstTexture = static_cast<Unity::TTexture_DX11&>( DstTexutreU ).GetTexture();
-    auto* SrcTexture = static_cast<Unity::TTexture_DX11&>( SrcTexutreU ).GetTexture();
+    auto* DstTexture = static_cast<Unity::TTexture_Dx11&>( DstTextureU ).GetTexture();
+    auto* SrcTexture = static_cast<Unity::TTexture_Dx11&>( SrcTextureU ).GetTexture();
 	if ( !DstTexture || !SrcTexture )
 		return false;
 
@@ -421,8 +437,8 @@ bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture Texture,const TFramePixels
 bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture DstTextureU,Unity::TTexture SrcTextureU)
 {
 	/*
-	 auto* DstTexture = static_cast<Unity::TTexture_DX11&>( DstTexutreU ).GetTexture();
-	 auto* SrcTexture = static_cast<Unity::TTexture_DX11&>( SrcTexutreU ).GetTexture();
+	 auto* DstTexture = static_cast<Unity::TTexture_Dx11&>( DstTexutreU ).GetTexture();
+	 auto* SrcTexture = static_cast<Unity::TTexture_Dx11&>( SrcTexutreU ).GetTexture();
 	 if ( !DstTexture || !SrcTexture )
 	 return false;
 	 

@@ -48,6 +48,7 @@ SoyRef TFastVideo::AllocInstance()
 	auto* pInstance = new TFastTexture( mNextInstanceRef, mFramePool );
 	if ( !pInstance )
 		return SoyRef();
+	pInstance->SetDevice( mDevice );
 	mNextInstanceRef++;
 	
 	mInstances.PushBack( pInstance );
@@ -127,14 +128,25 @@ bool TFastVideo::AllocDevice(Unity::TGfxDevice::Type DeviceType,void* Device)
 	mDevice = Unity::AllocDevice( DeviceType, Device );
 
 	if ( !mDevice )
-		Unity::DebugLog(BufferString<1000>() <<"Failed to allocated device " << DeviceType );
+	{
+		//	no warning if explicitly no device
+		if ( DeviceType != Unity::TGfxDevice::Invalid )
+			Unity::DebugLog(BufferString<1000>() <<"Failed to allocated device " << DeviceType );
+	}
+
+	//	update device on all instances (remove, or add)
+	for ( int i=0;	i<mInstances.GetSize();	i++ )
+	{
+		auto& Instance = *mInstances[i];
+		Instance.SetDevice( mDevice );
+	}
 
 	return mDevice!=nullptr;
 }
 
 bool TFastVideo::FreeDevice(Unity::TGfxDevice::Type DeviceType)
 {
-	mDevice.reset();
+	AllocDevice( Unity::TGfxDevice::Invalid, nullptr );
 	return true;
 }
 

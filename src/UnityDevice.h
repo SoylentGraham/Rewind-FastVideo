@@ -1,15 +1,17 @@
 #pragma once
 
+#include <ofxSoylent.h>
+#include "TFrame.h"
+
+
 #if defined(TARGET_WINDOWS)
-	#define ENABLE_DIRECTX11
+	#define ENABLE_DX11
+	//#define ENABLE_OPENGL
 #elif defined(TARGET_OSX)
 	#define ENABLE_OPENGL
 #endif
 
-#include <ofxSoylent.h>
-#include "TFrame.h"
-
-#if defined(ENABLE_DIRECTX11)
+#if defined(ENABLE_DX11)
 	#include <d3d11.h>
 #endif
 
@@ -25,8 +27,8 @@
 
 class TUnityDevice;
 class TUnityDevice_Dummy;
-#if defined(ENABLE_DIRECTX11)
-class TUnityDevice_DX11;
+#if defined(ENABLE_DX11)
+class TUnityDevice_Dx11;
 #endif
 #if defined(ENABLE_OPENGL)
 class TUnityDevice_Opengl;
@@ -132,7 +134,7 @@ namespace Unity
 	ofPtr<TUnityDevice> AllocDevice(Unity::TGfxDevice::Type Type,void* Device);
     
     class TTexture;
-    class TTexture_DX11;
+    class TTexture_Dx11;
     class TTexture_Opengl;
 };
 
@@ -171,10 +173,10 @@ inline STRING& operator<<(STRING& str,const Unity::TGfxDevice::Type& Value)
 
 
 #if defined(ENABLE_DX11)
-class Unity::TTexture_DX11 : public Unity::TTexture
+class Unity::TTexture_Dx11 : public Unity::TTexture
 {
 public:
-    TTexture_DX11(ID3D11Texture2D* Texture=nullptr) :
+    TTexture_Dx11(ID3D11Texture2D* Texture=nullptr) :
         TTexture    ( Texture )
     {
     }
@@ -220,10 +222,10 @@ public:
 
 
 #if defined(ENABLE_DX11)
-class TUnityDevice_DX11 : public TUnityDevice
+class TUnityDevice_Dx11 : public TUnityDevice
 {
 public:
-	TUnityDevice_DX11(ID3D11Device* Device);
+	TUnityDevice_Dx11(ID3D11Device* Device);
     
 	virtual bool            IsValid()	{	return true;	}
     virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta);
