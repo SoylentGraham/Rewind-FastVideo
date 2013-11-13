@@ -6,7 +6,7 @@
 
 #if defined(TARGET_WINDOWS)
 	#define ENABLE_DX11
-	//#define ENABLE_OPENGL
+	#define ENABLE_OPENGL
 #elif defined(TARGET_OSX)
 	#define ENABLE_OPENGL
 #endif
@@ -22,6 +22,10 @@
 		#include <Opengl/gl.h>
 		#include <OpenGL/OpenGL.h>
 	#endif
+	#pragma comment(lib,"opengl32.lib")
+
+#define GL_INVALID_FORMAT		0
+#define GL_INVALID_TEXTURE_ID	0
 #endif
 
 
@@ -142,26 +146,25 @@ class Unity::TTexture
 {
 public:
     TTexture() :
-		mObject     (nullptr),
-		mId			( 0 )
+		mObject     (nullptr)
     {
     }
     explicit TTexture(void* Object) :
-		mObject     (Object),
-		mId			( 0 )
+		mObject     ( Object )
     {
     }
 	explicit TTexture(uint32 Id) :
-		mObject     (nullptr),
-		mId			( Id )
+		mObject     ( reinterpret_cast<void*>(Id) )
     {
     }
-    virtual bool        IsValid() const {   return (mObject != nullptr) || (mId!=0);  }
+    virtual bool        IsValid() const {   return (mObject != nullptr);  }	//	nullpointer != 0, so might have issues here in c++11
 	operator            bool()			{	return IsValid();	}
 
-protected:
-    void*               mObject;	//	pointer to type in dx
-	uint32				mId;		//	id for opengl
+	uint32				GetInteger() const	{	return reinterpret_cast<uint32>( mObject );	}
+	void*				GetPointer() const	{	return mObject;	}
+
+private:
+    void*               mObject;	//	pointer to type in dx, integer in opengl. ptr<>int? erk
 };
 
 template<class STRING>
@@ -181,7 +184,7 @@ public:
     {
     }
     
-    ID3D11Texture2D*    GetTexture()    {   return reinterpret_cast<ID3D11Texture2D*>( mObject );   }
+    ID3D11Texture2D*    GetTexture()    {   return reinterpret_cast<ID3D11Texture2D*>( GetPointer() );   }
 };
 #endif
 
@@ -195,8 +198,8 @@ public:
     {
     }
     
-    GLuint			GetTexture()    {   return static_cast<GLuint>( mId );   }
-    bool			BindTexture();
+	GLuint			GetTextureId()    {   return static_cast<GLuint>( GetInteger() );   }
+	bool			BindTexture();
 };
 #endif
 
@@ -211,14 +214,34 @@ public:
 
 	TFrameMeta              GetTextureMeta(Unity::TTexture* Texture)    {   return Texture ? GetTextureMeta(*Texture) : TFrameMeta();   }
     
+	virtual bool			AllowOperationsOutOfRenderThread() const=0;
 	virtual bool            IsValid()=0;
     virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta)=0;
-    virtual bool            DeleteTexture(Unity::TTexture Texture)=0;
+    virtual bool            DeleteTexture(Unity::TTexture& Texture)=0;
 	virtual TFrameMeta      GetTextureMeta(Unity::TTexture Texture)=0;
 	virtual bool            CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking)=0;
 	virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TTexture SrcTexture)=0;
+
+public:
+	ofMutex					mContextLock;	//	contexts are generally not threadsafe (certainly not DX11 or opengl) so make it common
 };
 
+
+class TUnityDeviceContextScope
+{
+public:
+	TUnityDeviceContextScope(TUnityDevice& Device) :
+		mDevice	( Device )
+	{
+		mDevice.mContextLock.lock();
+	}
+	~TUnityDeviceContextScope()
+	{
+		mDevice.mContextLock.unlock();
+	}
+public:
+	TUnityDevice&	mDevice;
+};
 
 
 #if defined(ENABLE_DX11)
@@ -227,17 +250,19 @@ class TUnityDevice_Dx11 : public TUnityDevice
 public:
 	TUnityDevice_Dx11(ID3D11Device* Device);
     
+	virtual bool			AllowOperationsOutOfRenderThread() const		{	return true;	}
 	virtual bool            IsValid()	{	return true;	}
     virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta);
-    virtual bool            DeleteTexture(Unity::TTexture Texture);
+    virtual bool            DeleteTexture(Unity::TTexture& Texture);
 	virtual TFrameMeta      GetTextureMeta(Unity::TTexture Texture);
 	virtual bool            CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking);
 	virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TTexture SrcTexture);
     
-	ID3D11Device&           GetDevice()		{	assert( mDevice );	return *mDevice;	}
-    
+	ID3D11Device&				GetDevice()		{	assert( mDevice );	return *mDevice;	}
+ 	static TFrameFormat::Type	GetFormat(DXGI_FORMAT Format);
+	static DXGI_FORMAT			GetFormat(TFrameFormat::Type Format);
+   
 private:
-	ofMutex						mContextLock;	//	DX11 context is not threadsafe
 	TAutoRelease<ID3D11Device>	mDevice;
 };
 #endif
@@ -249,9 +274,10 @@ class TUnityDevice_Dummy : public TUnityDevice
 public:
 	TUnityDevice_Dummy()    {}
     
+	virtual bool			AllowOperationsOutOfRenderThread() const		{	return true;	}
 	virtual bool            IsValid()	{	return false;	}
     virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta)          {   return Unity::TTexture();   }
-    virtual bool            DeleteTexture(Unity::TTexture Texture)      {   return false;   }
+    virtual bool            DeleteTexture(Unity::TTexture& Texture)      {   Texture = Unity::TTexture();	return false;   }
 	virtual TFrameMeta      GetTextureMeta(Unity::TTexture Texture)     {   return TFrameMeta();    }
 	virtual bool            CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking)    {   return false;   }
     virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TTexture SrcTexture)        {   return false;   }
@@ -266,13 +292,18 @@ class TUnityDevice_Opengl : public TUnityDevice
 public:
 	TUnityDevice_Opengl();
     
+	virtual bool			AllowOperationsOutOfRenderThread() const		{	return false;	}
 	virtual bool            IsValid()	{	return true;	}
     virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta);
-    virtual bool            DeleteTexture(Unity::TTexture Texture);
+    virtual bool            DeleteTexture(Unity::TTexture& Texture);
 	virtual TFrameMeta      GetTextureMeta(Unity::TTexture Texture);
 	virtual bool            CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking);
 	virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TTexture SrcTexture);
  
+	static TFrameFormat::Type	GetFormat(GLint Format);
+	static GLint				GetFormat(TFrameFormat::Type Format);
+	static bool				HasError();	//	note: static so need parent to do a context lock
+
 private:
 };
 #endif

@@ -13,7 +13,8 @@ namespace TFrameFormat
 		YUV,	//	4:2:2
 	};
 
-	int		GetChannels(Type Format);
+	int			GetChannels(Type Format);
+	const char*	ToString(Type Format);
 };
 
 class TFrameMeta
