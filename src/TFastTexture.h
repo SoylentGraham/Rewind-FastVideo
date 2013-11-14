@@ -5,12 +5,6 @@
 #include "UnityDevice.h"
 
 
-#if defined(ENABLE_DX11)
-interface ID3D11Texture2D;
-class TUnityDevice_DX11;
-#endif
-
-
 namespace TFastVideoState
 {
 	enum Type
@@ -26,18 +20,29 @@ namespace TFastVideoState
 class TFastTextureUploadThread : public SoyThread
 {
 public:
-	TFastTextureUploadThread(TFastTexture& Parent,TUnityDevice& Device) :
-		SoyThread	( "TFastTextureUploadThread" ),
-		mParent		( Parent ),
-		mDevice		( Device )
-	{
-	}
+	TFastTextureUploadThread(TFastTexture& Parent,TUnityDevice& Device);
+	~TFastTextureUploadThread();
+
+	virtual void			threadedFunction();
+	void					Update();
+
+	bool					IsValid();				//	check was setup okay
+	bool					CopyToTarget(Unity::TTexture TargetTexture,SoyTime& TargetTextureFrame);
 	
-	virtual void	threadedFunction();
+private:
+	bool					CreateDynamicTexture();
+	void					DeleteDynamicTexture();
+
+	TUnityDevice&			GetDevice()		{	return mDevice;	}
 
 public:
-	TFastTexture&		mParent;
-	TUnityDevice&       mDevice;
+	TFastTexture&			mParent;
+	TUnityDevice&			mDevice;
+
+	ofMutex					mDynamicTextureLock;
+	Unity::TDynamicTexture	mDynamicTexture;
+	SoyTime					mDynamicTextureFrame;	//	frame in current dynamic texture
+	bool					mDynamicTextureChanged;	//	locked via mDynamicTextureLock
 };
 
 //	instance of a video texture
@@ -49,31 +54,35 @@ public:
 
 	SoyRef				GetRef() const			{	return mRef;	}
 
-	void				OnDynamicTextureChanged(SoyTime Timestamp);
+	void				OnTargetTextureChanged();
 	void				OnPostRender();	//	callback from unity render thread
 
 	bool				SetTexture(Unity::TTexture TargetTexture);
 	bool				SetVideo(const std::wstring& Filename);
 	void				SetState(TFastVideoState::Type State);
-	void				SetDevice(TUnityDevice* Device);
+	void				SetDevice(ofPtr<TUnityDevice> Device);
    
 	SoyTime				GetFrameTime();
 	void				SetFrameTime(SoyTime Time);
 
-	bool				UpdateDynamicTexture();
+	bool				UpdateFrameTexture(Unity::TTexture Texture,SoyTime& FrameCopied);			//	copy latest frame to texture. returns if changed
+	bool				UpdateFrameTexture(Unity::TDynamicTexture Texture,SoyTime& FrameCopied);	//	copy latest frame to texture. returns if changed
+
+	Unity::TTexture		GetTargetTexture()		{	return mTargetTexture;	}
 
 private:
-	bool				CreateDynamicTexture();
-	bool				CreateUploadThread();
+	bool				CreateUploadThread(bool IsRenderThread);
 
 	void				DeleteTargetTexture();
-	void				DeleteDynamicTexture();
 	void				DeleteDecoderThread();
 	void				DeleteUploadThread();
 
 	void				UpdateFrameTime();
   
     TUnityDevice&       GetDevice();
+
+public:
+	TFramePool&				mFramePool;
 
 private:
 	ofMutex					mRenderLock;		//	lock while rendering (from a different thread) so we don't deallocate mid-render
@@ -83,15 +92,11 @@ private:
 	TFrameBuffer			mFrameBuffer;
 	SoyRef					mRef;
 
-	TFramePool&						mFramePool;
-    TUnityDevice*                   mDevice;
+	ofPtr<TUnityDevice>		mDevice;
 
-	ofMutex							mDynamicTextureLock;
-	Unity::TTexture                 mDynamicTexture;
-	SoyTime							mDynamicTextureFrame;	//	frame in current dynamic texture
-	bool							mDynamicTextureChanged;	//	locked via mDynamicTextureLock
 
-	Unity::TTexture                 mTargetTexture;
+	Unity::TTexture					mTargetTexture;
+	SoyTime							mTargetTextureFrame;	//	frame of the contents of target texture
 	ofPtr<TDecodeThread>			mDecoderThread;
 	ofPtr<TFastTextureUploadThread>	mUploadThread;
 };

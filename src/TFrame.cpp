@@ -15,6 +15,19 @@ int TFrameFormat::GetChannels(TFrameFormat::Type Format)
 	}
 }
 
+const char* TFrameFormat::ToString(TFrameFormat::Type Format)
+{
+	switch ( Format )
+	{
+	case TFrameFormat::RGB:		return "RGB";
+	case TFrameFormat::RGBA:	return "RGBA";
+	case TFrameFormat::YUV:		return "YUV";
+	case TFrameFormat::Invalid:
+	default:
+		return "Invalid";
+	}
+}
+
 
 bool TFrameMeta::IsEqualSize(const TFrameMeta& that) const
 {

@@ -19,6 +19,7 @@
 //#define ENABLE_DECODER_LIBAV_INIT_SIZE_FRAME		TColour(0,255,0,255)
 #define ENABLE_FAILED_DECODER_INIT_FRAME	TColour(255,0,0,255)
 #define ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR	TColour(255,255,0,255)
+#define HARDWARE_INIT_TEXTURE_COLOUR		TColour(0,255,255,255)
 
 static bool SKIP_PAST_FRAMES	= true;
 static bool STORE_PAST_FRAMES	= true;
@@ -30,6 +31,9 @@ static bool SHOW_POOL_FULL_MESSAGE	=	true;
 
 #define REAL_TIME_MODIFIER				1.0f	//	speed up/slow down real life time
 
+//#define FORCE_SINGLE_THREAD_UPLOAD
+static bool	OPENGL_REREADY_MAP			=true;	//	after we copy the dynamic texture, immediately re-open the map
+static bool	OPENGL_USE_STREAM_TEXTURE	=true;	//	GL_STREAM_DRAW else GL_DYNAMIC_DRAW
 static bool DEBUG_RENDER_LAG = true;
 
 class TFastTexture;
@@ -79,8 +83,10 @@ namespace Unity
 	typedef unsigned long long	ulong;
 	typedef void (*TDebugLogFunc)(const char*);
 
-	void	DebugLog(const char* str);
-	void	DebugLog(const std::string& string);
+	void		DebugLog(const char* str);
+	inline void	DebugLog(const std::string& String)		{	DebugLog( String.c_str() );	}
+	void		DebugError(const char* str);
+	inline void	DebugError(const std::string& String)	{	DebugError( String.c_str() );	}
 };
 
 extern "C" EXPORT_API Unity::ulong	AllocInstance();

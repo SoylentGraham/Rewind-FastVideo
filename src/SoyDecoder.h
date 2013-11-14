@@ -24,7 +24,11 @@ extern "C"
 #include <libavutil/samplefmt.h>
 #include <libavutil/samplefmt.h>
 #include <libswscale/swscale.h>
+
+#if defined(ENABLE_DVXA)
+#include <d3d11.h>
 #include <libavcodec/dxva2.h>
+#endif
 };
 #pragma comment(lib,"avcodec.lib")
 #pragma comment(lib,"avfilter.lib")

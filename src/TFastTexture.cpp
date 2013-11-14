@@ -21,11 +21,10 @@ const char* TFastVideoState::ToString(TFastVideoState::Type State)
 
 
 TFastTexture::TFastTexture(SoyRef Ref,TFramePool& FramePool) :
-    mDevice         (nullptr),
-	mRef			( Ref ),
-	mFrameBuffer	( DEFAULT_MAX_FRAME_BUFFERS, FramePool ),
-	mFramePool		( FramePool ),
-	mState			( TFastVideoState::FirstFrame )
+	mRef					( Ref ),
+	mFrameBuffer			( DEFAULT_MAX_FRAME_BUFFERS, FramePool ),
+	mFramePool				( FramePool ),
+	mState					( TFastVideoState::FirstFrame )
 {
 }
 
@@ -35,9 +34,8 @@ TFastTexture::~TFastTexture()
 	ofMutex::ScopedLock Lock( mRenderLock );
 
 	DeleteTargetTexture();
-	DeleteDynamicTexture();
-	DeleteDecoderThread();
 	DeleteUploadThread();
+	DeleteDecoderThread();
 }
 
 TUnityDevice& TFastTexture::GetDevice()
@@ -49,6 +47,18 @@ TUnityDevice& TFastTexture::GetDevice()
         return DummyDevice;
     }
     return *mDevice;
+}
+
+void TFastTexture::SetDevice(ofPtr<TUnityDevice> Device)
+{
+	//	unset old device
+	DeleteTargetTexture();
+	DeleteUploadThread();
+	mDevice.reset();
+
+	//	set new device
+	mDevice = Device;
+	CreateUploadThread(false);	//	maybe true?
 }
 
 void TFastTexture::SetState(TFastVideoState::Type State)
@@ -71,19 +81,6 @@ void TFastTexture::DeleteTargetTexture()
 	Device.DeleteTexture( mTargetTexture );
 }
 
-void TFastTexture::DeleteDynamicTexture()
-{
-	ofMutex::ScopedLock lock( mDynamicTextureLock );
-    auto& Device = GetDevice();
-	Device.DeleteTexture( mDynamicTexture );
-
-	//	update decode-to-format
-	if ( mDecoderThread )
-	{
-		mDecoderThread->SetDecodedFrameMeta( TFrameMeta() );
-	}
-
-}
 
 void TFastTexture::DeleteDecoderThread()
 {
@@ -94,14 +91,28 @@ void TFastTexture::DeleteDecoderThread()
 	}
 }
 
-bool TFastTexture::CreateUploadThread()
+bool TFastTexture::CreateUploadThread(bool IsRenderThread)
 {
 	if ( mUploadThread )
 		return true;
 
-	//	alloc new one
+	//	dont bother with a seperate thread if we don't allow out-of-render-thread operations
     auto& Device = GetDevice();
+	if ( !Device.IsValid() )
+		return false;
+
+	//	need a target texture first
+	if ( !mTargetTexture )
+		return false;
+
 	mUploadThread = ofPtr<TFastTextureUploadThread>( new TFastTextureUploadThread( *this, Device ) );
+	//	something messed up at init
+	if ( !mUploadThread->IsValid() )
+	{
+		DeleteUploadThread();
+		return false;
+	}
+
 	mUploadThread->startThread( true, true );
 	return true;
 }
@@ -113,77 +124,13 @@ void TFastTexture::DeleteUploadThread()
 		mUploadThread->waitForThread();
 		mUploadThread.reset();
 	}
-	
-}
 
-
-bool TFastTexture::CreateDynamicTexture()
-{
-    auto& Device = GetDevice();
-	//	dynamic texture needs to be same size as target texture
-	if ( !mTargetTexture )
-	{
-		DeleteDynamicTexture();
-		return false;
-	}
-
-	auto TargetTextureMeta = Device.GetTextureMeta( mTargetTexture );
-
-	//	if dimensions are different, delete old one
-	ofMutex::ScopedLock lock( mDynamicTextureLock );
-	if ( mDynamicTexture )
-	{
-		auto CurrentTextureMeta = Device.GetTextureMeta( mDynamicTexture );
-		if ( !CurrentTextureMeta.IsEqualSize(TargetTextureMeta) )
-		{
-			DeleteDynamicTexture();
-		}
-	}
-
-	//	need to create a new one
-	bool HadTexure = (mDynamicTexture);
-	if ( !mDynamicTexture )
-	{
-		mDynamicTexture = Device.AllocTexture( TargetTextureMeta );
-		if ( !mDynamicTexture )
-		{
-			BufferString<100> Debug;
-			Debug << "Failed to alloc dynamic texture; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.GetChannels();
-			Unity::DebugLog( Debug );
-
-			DeleteDynamicTexture();
-			return false;
-		}
-
-		//	initialise texture contents
-#if defined(ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR)
-		auto* Frame = mFramePool.Alloc( TargetTextureMeta, "ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR" );
-		if ( Frame )
-		{
-			Frame->SetColour( ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR );
-			Device.CopyTexture( mDynamicTexture, *Frame, true );
-			mFramePool.Free( Frame );
-		}
-#endif
-	}
-
-	//	update decode-to-format
 	if ( mDecoderThread )
 	{
-		TFrameMeta TextureFormat = Device.GetTextureMeta( mDynamicTexture );
-		mDecoderThread->SetDecodedFrameMeta( TextureFormat );
-
-		if ( !HadTexure )
-		{
-			BufferString<100> Debug;
-			Debug << "Allocated dynamic texture, set decoded meta; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.GetChannels();
-			Unity::DebugLog( Debug );
-		}
-	}
-
-	CreateUploadThread();
-	return true;
+		mDecoderThread->SetDecodedFrameMeta( TFrameMeta() );
+	}	
 }
+
 
 bool TFastTexture::SetTexture(Unity::TTexture TargetTexture)
 {
@@ -193,7 +140,7 @@ bool TFastTexture::SetTexture(Unity::TTexture TargetTexture)
 	DeleteTargetTexture();
 
 	//	free existing dynamic texture if size/format difference
-	DeleteDynamicTexture();
+	DeleteUploadThread();
 
 	{
 		auto TextureMeta = Device.GetTextureMeta( TargetTexture );
@@ -201,12 +148,10 @@ bool TFastTexture::SetTexture(Unity::TTexture TargetTexture)
 		Debug << "Assigning target texture; " << TextureMeta.mWidth << "x" << TextureMeta.mHeight << "x" << TextureMeta.GetChannels();
 		Unity::DebugLog( Debug );
 	}
-
 	mTargetTexture = TargetTexture;
 
 	//	alloc dynamic texture
-	CreateDynamicTexture();
-	CreateUploadThread();
+	CreateUploadThread(false);
 	
 	//	pre-alloc pool
 	TFrameMeta FrameMeta = Device.GetTextureMeta( mTargetTexture );
@@ -237,7 +182,8 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 				
 #if defined(ENABLE_FAILED_DECODER_INIT_FRAME)
 		//	push a red "BAD" frame
-		TFrameMeta TextureFormat = Device.GetTextureMeta( mDynamicTexture );
+		//	gr: was dynamic texture format
+		TFrameMeta TextureFormat = Device.GetTextureMeta( mTargetTexture );
 		TFramePixels* Frame = mFramePool.Alloc( TextureFormat, "Debug failed init" );
 		if ( Frame )
 		{
@@ -257,103 +203,118 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 	}
 
 	//	if we already have the output texture we should set the decode format
-	if ( mDynamicTexture )
+	//	gr: was dynamic texture format
+	if ( mTargetTexture )
 	{
-		TFrameMeta TextureFormat = Device.GetTextureMeta( mDynamicTexture );
+		TFrameMeta TextureFormat = Device.GetTextureMeta( mTargetTexture );
 		mDecoderThread->SetDecodedFrameMeta( TextureFormat );
 	}
 
 	return true;
 }
 
-bool TFastTexture::UpdateDynamicTexture()
+
+bool TFastTexture::UpdateFrameTexture(Unity::TTexture Texture,SoyTime& FrameCopied)
 {
 	ofScopeTimerWarning Timer(__FUNCTION__,2);
 
+	if ( !Texture )
+		return false;
+
     auto& Device = GetDevice();
+	if ( !Device.IsValid() )
+		return false;
     
-	//	push latest frame to texture
-	if ( !mTargetTexture )
-		return false;
-
-	//	might need to setup dynamic texture still
-	if ( !CreateDynamicTexture() )
-		return false;
-
-	{
-		ofMutex::ScopedLock Lock( mDynamicTextureLock );
-		//	last one hasnt been used yet
-		if ( mDynamicTextureChanged )
-			return true;
-	}
-
 	//	pop latest frame (this takes ownership)
 	SoyTime FrameTime = GetFrameTime();
 	TFramePixels* pFrame = mFrameBuffer.PopFrame( FrameTime );
 	if ( !pFrame )
 		return false;
-	
-	bool Copy = true;
 
-	ofMutex::ScopedLock Lock( mDynamicTextureLock );
-	if ( pFrame->mTimestamp < mDynamicTextureFrame )
+	//	copy to texture
+	if ( !Device.CopyTexture( Texture, *pFrame, false ) )
 	{
-		BufferString<100> Debug;
-		Debug << "New dynamic texture frame ("<< pFrame->mTimestamp << ") BEHIND current frame (" << mDynamicTextureFrame << ")";
-		Unity::DebugLog( Debug );
-
-		if ( DYNAMIC_SKIP_OOO_FRAMES )
-			Copy = false;
+		//	put frame back in queue
+		mFrameBuffer.PushFrame( pFrame );
+		return false;
 	}
-
-	if ( Copy )
-	{
-		if ( !Device.CopyTexture( mDynamicTexture, *pFrame, false ) )
-		{
-			mFrameBuffer.PushFrame( pFrame );
-			return false;
-		}
-
-		mDynamicTextureChanged = true;
-		mDynamicTextureFrame = pFrame->mTimestamp;
-	}
-
+	FrameCopied = pFrame->mTimestamp;
 	pFrame->SetOwner( __FUNCTION__ );
-	OnDynamicTextureChanged( FrameTime );
 	
-	/*
-	BufferString<100> Debug;
-	Debug << "Frame " << pFrame->mTimestamp << " Buffer -> Dynamic";
-	ofLogNotice( Debug.c_str() );
-	*/
-
 	//	free frame
 	mFramePool.Free( pFrame );
 
+	return true;
+}
+
+bool TFastTexture::UpdateFrameTexture(Unity::TDynamicTexture Texture,SoyTime& FrameCopied)
+{
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
+
+	if ( !Texture )
+		return false;
+
+    auto& Device = GetDevice();
+	if ( !Device.IsValid() )
+		return false;
+    
+	//	pop latest frame (this takes ownership)
+	SoyTime FrameTime = GetFrameTime();
+	TFramePixels* pFrame = mFrameBuffer.PopFrame( FrameTime );
+	if ( !pFrame )
+		return false;
+
+	//	copy to texture
+	if ( !Device.CopyTexture( Texture, *pFrame, false ) )
+	{
+		//	put frame back in queue
+		mFrameBuffer.PushFrame( pFrame );
+		return false;
+	}
+	FrameCopied = pFrame->mTimestamp;
+	pFrame->SetOwner( __FUNCTION__ );
+	
+	//	free frame
+	mFramePool.Free( pFrame );
 
 	return true;
 }
 
 void TFastTexture::OnPostRender()
 {
-	ofScopeTimerWarning Timer(__FUNCTION__,2);
-	ofMutex::ScopedLock RenderLock(mRenderLock);
+	ofScopeTimerWarning Timer(__FUNCTION__,0);
+	//ofMutex::ScopedLock RenderLock(mRenderLock);
 
-	//	skip if dynamic texture is in use
-	//	gr: or dont? and stall unity?
-	ofMutex::ScopedLock Lock(mDynamicTextureLock);
+	bool TargetChanged = false;
 
-	if ( !ALWAYS_COPY_DYNAMIC_TO_TARGET )
+	//	somtimes need to create upload thread in the render thread
+	if ( !mUploadThread )
+		CreateUploadThread(true);
+
+	if ( mUploadThread )
 	{
-		//	no changes
-		if ( !mDynamicTextureChanged )
-			return;
+#if defined(FORCE_SINGLE_THREAD_UPLOAD)
+		mUploadThread->Update();
+#endif
+
+		//	get latest dynamic texture
+		ofScopeTimerWarning Timerb( BufferString<100>()<<__FUNCTION__<<"mUploadThread->CopyToTarget",0);
+		TargetChanged = mUploadThread->CopyToTarget( mTargetTexture, mTargetTextureFrame );
+	}
+	else
+	{
+		//	if we have no upload thread, copy straight to target texture
+		ofScopeTimerWarning Timerb( BufferString<100>()<<__FUNCTION__<<"UpdateFrameTexture",0);
+		TargetChanged = UpdateFrameTexture( mTargetTexture, mTargetTextureFrame );
 	}
 
-	if ( DEBUG_RENDER_LAG )
+	if ( TargetChanged )
+		OnTargetTextureChanged();
+
+	if ( TargetChanged && DEBUG_RENDER_LAG )
 	{
 		auto Now = GetFrameTime();
-		auto Lag = Now.GetTime() - mDynamicTextureFrame.GetTime();
+		auto Lag = Now.GetTime() - mTargetTextureFrame.GetTime();
 		static int MinLag = 1;
 		if ( Now.IsValid() && Lag >= MinLag )
 		{
@@ -362,15 +323,6 @@ void TFastTexture::OnPostRender()
 			Unity::DebugLog( Debug );
 		}
 	}
-
-
-	//	copy to GPU for usage
-    auto& Device = GetDevice();
-	if ( !Device.CopyTexture( mTargetTexture, mDynamicTexture ) )
-		return;
-	mDynamicTextureChanged = false;
-
-	return;
 }
 
 SoyTime TFastTexture::GetFrameTime()
@@ -381,12 +333,12 @@ SoyTime TFastTexture::GetFrameTime()
 	return mFrame.Get();
 }
 
-void TFastTexture::OnDynamicTextureChanged(SoyTime Timestamp)
+void TFastTexture::OnTargetTextureChanged()
 {
 	if ( mState == TFastVideoState::FirstFrame )
 	{
 		mState = TFastVideoState::Playing;
-		SetFrameTime( Timestamp );
+		SetFrameTime( mTargetTextureFrame );
 	}
 }
 
@@ -431,7 +383,7 @@ void TFastTexture::UpdateFrameTime()
 
 void TFastTexture::SetFrameTime(SoyTime Frame)
 {
-	ofMutex::ScopedLock lockc( mDynamicTextureLock );	//	to avoid deadlock this has to be done first
+//	ofMutex::ScopedLock lockc( mDynamicTextureLock );	//	to avoid deadlock this has to be done first
 	ofMutex::ScopedLock locka( mLastUpdateTime );
 	ofMutex::ScopedLock lockb( mFrame );
 
@@ -443,7 +395,7 @@ void TFastTexture::SetFrameTime(SoyTime Frame)
 		mDecoderThread->SetMinTimestamp( mFrame );
 	}
 
-	mDynamicTextureFrame = Frame;	//	-1?
+//	mDynamicTextureFrame = Frame;	//	-1?
 
 
 	BufferString<100> Debug;
@@ -459,8 +411,155 @@ void TFastTextureUploadThread::threadedFunction()
 	{
 		sleep(1);
 
-		//	update texture
-		mParent.UpdateDynamicTexture();
+#if !defined(FORCE_SINGLE_THREAD_UPLOAD)
+		Update();
+#endif
 	}
+}
+
+void TFastTextureUploadThread::Update()
+{
+	{
+		ofMutex::ScopedLock Lock( mDynamicTextureLock );
+		//	last one hasnt been used yet
+		if ( mDynamicTextureChanged )
+			return;
+	}
+
+	//	copy latest
+	if ( mParent.UpdateFrameTexture( mDynamicTexture, mDynamicTextureFrame ) )
+	{
+		//ofMutex::ScopedLock Lock( mDynamicTextureLock );
+		mDynamicTextureChanged = true;
+	}
+}
+
+
+bool TFastTextureUploadThread::CopyToTarget(Unity::TTexture TargetTexture,SoyTime& TargetTextureFrame)
+{
+	//	copy latest dynamic texture
+	ofMutex::ScopedLock Lock( mDynamicTextureLock );
+		
+	//	dont' have a new texture yet
+	if ( !mDynamicTextureChanged )
+		return false;
+
+	//	copy latest
+	if ( !mDevice.CopyTexture( TargetTexture, mDynamicTexture ) )
+		return false;
+	TargetTextureFrame = mDynamicTextureFrame;
+
+	//	latest has been used
+	mDynamicTextureChanged = false;
+
+	return true;
+}
+
+TFastTextureUploadThread::TFastTextureUploadThread(TFastTexture& Parent,TUnityDevice& Device) :
+	SoyThread				( "TFastTextureUploadThread" ),
+	mParent					( Parent ),
+	mDevice					( Device ),
+	mDynamicTextureChanged	( false )
+{
+	if ( !CreateDynamicTexture() )
+	{
+		//	shouldn't create this thread if we can't satisfy the requirements 
+		assert( false );
+	}
+}
+
+TFastTextureUploadThread::~TFastTextureUploadThread()
+{
+	DeleteDynamicTexture();
+}
+
+bool TFastTextureUploadThread::CreateDynamicTexture()
+{
+	auto& Device = GetDevice();
+	auto mTargetTexture = mParent.GetTargetTexture();
+
+	//	dynamic texture needs to be same size as target texture
+	if ( !mTargetTexture )
+	{
+		DeleteDynamicTexture();
+		return false;
+	}
+
+	//	not using dynamic texture
+	//	dont bother with a seperate thread if we don't allow out-of-render-thread operations
+	if ( !Device.IsValid() )
+		return false;
+
+
+	auto TargetTextureMeta = Device.GetTextureMeta( mTargetTexture );
+
+	//	if dimensions are different, delete old one
+	ofMutex::ScopedLock lock( mDynamicTextureLock );
+	if ( mDynamicTexture )
+	{
+		auto CurrentTextureMeta = Device.GetTextureMeta( mDynamicTexture );
+		if ( !CurrentTextureMeta.IsEqualSize(TargetTextureMeta) )
+		{
+			DeleteDynamicTexture();
+		}
+	}
+
+	//	need to create a new one
+	bool HadTexure = (mDynamicTexture);
+	if ( !mDynamicTexture )
+	{
+		mDynamicTexture = Device.AllocDynamicTexture( TargetTextureMeta );
+		if ( !mDynamicTexture )
+		{
+			BufferString<100> Debug;
+			Debug << "Failed to alloc dynamic texture; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.GetChannels();
+			Unity::DebugLog( Debug );
+
+			DeleteDynamicTexture();
+			return false;
+		}
+
+		//	initialise texture contents
+#if defined(ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR)
+		auto* Frame = mParent.mFramePool.Alloc( TargetTextureMeta, "ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR" );
+		if ( Frame )
+		{
+			Frame->SetColour( ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR );
+			Device.CopyTexture( mDynamicTexture, *Frame, true );
+			mParent.mFramePool.Free( Frame );
+		}
+#endif
+	}
+
+	/*
+	//	update decode-to-format
+	if ( mDecoderThread )
+	{
+		TFrameMeta TextureFormat = Device.GetTextureMeta( mDynamicTexture );
+		mDecoderThread->SetDecodedFrameMeta( TextureFormat );
+
+		if ( !HadTexure )
+		{
+			BufferString<100> Debug;
+			Debug << "Allocated dynamic texture, set decoded meta; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.GetChannels();
+			Unity::DebugLog( Debug );
+		}
+	}
+	*/
+
+	return true;
+}
+
+void TFastTextureUploadThread::DeleteDynamicTexture()
+{
+	ofMutex::ScopedLock lock( mDynamicTextureLock );
+    auto& Device = GetDevice();
+	Device.DeleteTexture( mDynamicTexture );
+}
+
+bool TFastTextureUploadThread::IsValid()
+{
+	ofMutex::ScopedLock lock( mDynamicTextureLock );
+    return mDynamicTexture.IsValid();
 }
 

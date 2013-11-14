@@ -31,6 +31,9 @@
     <ClCompile Include="TFrame.cpp">
       <Filter>Src</Filter>
     </ClCompile>
+    <ClCompile Include="gl\glew.c">
+      <Filter>Src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FastVideo.h">
@@ -116,6 +119,15 @@
     </ClInclude>
     <ClInclude Include="ffmpeg\include\libavcodec\xvmc.h">
       <Filter>libav</Filter>
+    </ClInclude>
+    <ClInclude Include="gl\glew.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="gl\glxew.h">
+      <Filter>Src</Filter>
+    </ClInclude>
+    <ClInclude Include="gl\wglew.h">
+      <Filter>Src</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
