@@ -100,8 +100,6 @@ bool TFastTexture::CreateUploadThread(bool IsRenderThread)
     auto& Device = GetDevice();
 	if ( !Device.IsValid() )
 		return false;
-	if ( !Device.AllowOperationsOutOfRenderThread() && !IsRenderThread )
-		return false;
 
 	//	need a target texture first
 	if ( !mTargetTexture )
@@ -284,8 +282,8 @@ bool TFastTexture::UpdateFrameTexture(Unity::TDynamicTexture Texture,SoyTime& Fr
 
 void TFastTexture::OnPostRender()
 {
-	ofScopeTimerWarning Timer(__FUNCTION__,2);
-	ofMutex::ScopedLock RenderLock(mRenderLock);
+	ofScopeTimerWarning Timer(__FUNCTION__,0);
+	//ofMutex::ScopedLock RenderLock(mRenderLock);
 
 	bool TargetChanged = false;
 
@@ -300,11 +298,13 @@ void TFastTexture::OnPostRender()
 #endif
 
 		//	get latest dynamic texture
+		ofScopeTimerWarning Timerb( BufferString<100>()<<__FUNCTION__<<"mUploadThread->CopyToTarget",0);
 		TargetChanged = mUploadThread->CopyToTarget( mTargetTexture, mTargetTextureFrame );
 	}
 	else
 	{
 		//	if we have no upload thread, copy straight to target texture
+		ofScopeTimerWarning Timerb( BufferString<100>()<<__FUNCTION__<<"UpdateFrameTexture",0);
 		TargetChanged = UpdateFrameTexture( mTargetTexture, mTargetTextureFrame );
 	}
 
@@ -419,32 +419,19 @@ void TFastTextureUploadThread::threadedFunction()
 
 void TFastTextureUploadThread::Update()
 {
-	ofMutex::ScopedLock Lock( mDynamicTextureLock );
-		
-	//	last one hasnt been used yet
-	if ( mDynamicTextureChanged )
-		return;
+	{
+		ofMutex::ScopedLock Lock( mDynamicTextureLock );
+		//	last one hasnt been used yet
+		if ( mDynamicTextureChanged )
+			return;
+	}
 
 	//	copy latest
 	if ( mParent.UpdateFrameTexture( mDynamicTexture, mDynamicTextureFrame ) )
+	{
+		//ofMutex::ScopedLock Lock( mDynamicTextureLock );
 		mDynamicTextureChanged = true;
-/*
-ofMutex::ScopedLock Lock( mDynamicTextureLock );
-if ( pFrame->mTimestamp < mDynamicTextureFrame )
-{
-	BufferString<100> Debug;
-	Debug << "New dynamic texture frame ("<< pFrame->mTimestamp << ") BEHIND current frame (" << mDynamicTextureFrame << ")";
-	Unity::DebugLog( Debug );
-
-	if ( DYNAMIC_SKIP_OOO_FRAMES )
-		Copy = false;
-}
-*/
-/*
-BufferString<100> Debug;
-Debug << "Frame " << pFrame->mTimestamp << " Buffer -> Dynamic";
-ofLogNotice( Debug.c_str() );
-*/
+	}
 }
 
 

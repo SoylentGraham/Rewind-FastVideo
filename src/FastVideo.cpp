@@ -113,7 +113,7 @@ void TFastVideo::OnPostRender()
 		return;
 
 	//	device callback
-	mDevice->OnRenderThreadBegin();
+	mDevice->SetRenderThread();
 	mDevice->OnRenderThreadUpdate();
 	
 	for ( int i=0;	i<mInstances.GetSize();	i++ )
@@ -121,8 +121,6 @@ void TFastVideo::OnPostRender()
 		auto& Instance = *mInstances[i];
 		Instance.OnPostRender();
 	}
-
-	mDevice->OnRenderThreadEnd();
 }
 
 bool TFastVideo::AllocDevice(Unity::TGfxDevice::Type DeviceType,void* Device)

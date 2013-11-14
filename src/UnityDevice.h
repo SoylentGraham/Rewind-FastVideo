@@ -226,6 +226,33 @@ public:
 #endif
 
 
+class TOpenglBufferCache
+{
+public:
+	TOpenglBufferCache() :
+		mUnityRef			( 0 ),
+		mDataMap			( nullptr ),
+		mBufferName			( GL_INVALID_BUFFER_NAME ),
+		mDeleteRequested	( false ),
+		mMapRequested		( false )
+	{
+	}
+
+	bool		IsAllocated() const						{	return mBufferName != GL_INVALID_BUFFER_NAME;	}
+	bool		IsMapped() const						{	return mDataMap != nullptr;	}
+	inline bool	operator==(const uint32 UnityRef) const	{	return mUnityRef == UnityRef;	}
+
+public:
+	uint32		mUnityRef;			//	so that we can allocate a texture out of the render thread, we map to our own ID, not the opengl name
+	GLuint		mBufferName;		//	thread safe as only allocated/destroyed during render thread
+	TFrameMeta	mBufferMeta;
+
+	//	these might need a mutex
+	void*		mDataMap;
+	bool		mDeleteRequested;
+	bool		mMapRequested;
+};
+
 #if defined(ENABLE_OPENGL)
 class Unity::TTexture_Opengl : public Unity::TTexture
 {
@@ -245,14 +272,14 @@ public:
 class Unity::TDynamicTexture_Opengl : public Unity::TDynamicTexture
 {
 public:
-    TDynamicTexture_Opengl(GLuint TextureName=GL_INVALID_BUFFER_NAME) :
-		TDynamicTexture	( TextureName )
+    TDynamicTexture_Opengl(uint32 UnityRef=0) :
+		TDynamicTexture	( UnityRef )
     {
     }
-
-	GLuint			GetName()    {   return static_cast<GLuint>( GetInteger() );   }
-	bool			Bind(TUnityDevice_Opengl& Device);
-	bool			Unbind(TUnityDevice_Opengl& Device);
+    TDynamicTexture_Opengl(const TOpenglBufferCache& Buffer) :
+		TDynamicTexture	( Buffer.mUnityRef )
+    {
+    }
 };
 #endif
 
@@ -261,20 +288,22 @@ public:
 class TUnityDevice
 {
 public:
-	TUnityDevice() :
-		mRenderThreadActive	( false )
+	TUnityDevice()
 	{
 	}
 	virtual ~TUnityDevice()	
 	{
-		assert( !mRenderThreadActive );
 	}
 
 	virtual bool			AllowOperationsOutOfRenderThread() const=0;
-	bool					IsRenderThreadActive() const			{	return mRenderThreadActive;	}
-	virtual void			OnRenderThreadBegin()					{	mRenderThreadActive = true;	}	//	callback during render thread in case we can only do certain operations in render thread
-	virtual void			OnRenderThreadUpdate()					{	assert( mRenderThreadActive );	}	//	callback during render thread in case we can only do certain operations in render thread
-	virtual void			OnRenderThreadEnd()						{	mRenderThreadActive = false;	}	//	callback during render thread in case we can only do certain operations in render thread
+	bool					IsRenderThreadActive() const			{	return SoyThread::GetCurrentThreadId() == mRenderThreadId;	}
+	void					SetRenderThread()						{	mRenderThreadId = SoyThread::GetCurrentThreadId();	}
+	//	callback during render thread in case we can only do certain operations in render thread
+	virtual void			OnRenderThreadUpdate()					
+	{
+		assert( IsRenderThreadActive() );
+	}
+	
 
 	virtual bool            IsValid()=0;
     virtual Unity::TTexture			AllocTexture(TFrameMeta FrameMeta)=0;
@@ -291,9 +320,7 @@ public:
 
 public:
 	ofMutex					mContextLock;	//	contexts are generally not threadsafe (certainly not DX11 or opengl) so make it common
-
-private:
-	bool					mRenderThreadActive;
+	SoyThreadId				mRenderThreadId;
 };
 
 
@@ -377,12 +404,14 @@ public:
 
 
 
+
 #if defined(ENABLE_OPENGL)
 class TUnityDevice_Opengl : public TUnityDevice
 {
 public:
 	TUnityDevice_Opengl() :
-		mFirstRun	( true )
+		mFirstRun		( true ),
+		mLastBufferRef	( 0 )
 	{
 	}
     
@@ -403,11 +432,24 @@ public:
 	static GLint				GetFormat(TFrameFormat::Type Format);
 	static bool				HasError();	//	note: static so need parent to do a context lock
 	std::string				GetString(GLenum StringId);
+	
+private:
+	GLuint					GetName(Unity::TDynamicTexture& Texture);
+    bool					AllocDynamicTexture(TOpenglBufferCache& Buffer);
+    bool					DeleteTexture(TOpenglBufferCache& Buffer);
+	bool					Bind(Unity::TDynamicTexture& Texture);
+	bool					Bind(TOpenglBufferCache& Buffer);
+	bool					Unbind(Unity::TDynamicTexture& Texture);
+	bool					Unbind(TOpenglBufferCache& Buffer);
+	bool					AllocMap(TOpenglBufferCache& Buffer);
+	bool					FreeMap(TOpenglBufferCache& Buffer);
 
 private:
 	bool					mFirstRun;
 	Array<GLuint>			mDeleteTextureQueue;
-	Array<GLuint>			mDeleteBufferQueue;
+
+	uint32					mLastBufferRef;
+	ofMutexT<Array<TOpenglBufferCache>>	mBufferCache;	//	
 };
 #endif
 

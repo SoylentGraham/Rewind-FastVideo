@@ -333,15 +333,10 @@ bool Unity::TTexture_Opengl::Bind(TUnityDevice_Opengl& Device)
 #if defined(ENABLE_OPENGL)
 bool Unity::TTexture_Opengl::Unbind(TUnityDevice_Opengl& Device)
 {
+	TUnityDeviceContextScope Context( Device );
+	if ( !Context )
+		return false;
 	glBindTexture( GL_TEXTURE_2D, GL_INVALID_TEXTURE_NAME );
-	return true;
-}
-#endif
-
-#if defined(ENABLE_OPENGL)
-bool Unity::TDynamicTexture_Opengl::Unbind(TUnityDevice_Opengl& Device)
-{
-	glBindBuffer( GL_PIXEL_UNPACK_BUFFER, GL_INVALID_BUFFER_NAME );
 	return true;
 }
 #endif
@@ -404,54 +399,130 @@ Unity::TDynamicTexture TUnityDevice_Opengl::AllocDynamicTexture(TFrameMeta Frame
 	if ( !FrameMeta.IsValid() )
 		return Unity::TDynamicTexture();
 
+	//	create entry
+	ofMutex::ScopedLock Lock( mBufferCache );
+	auto& Buffer = mBufferCache.PushBack();
+	Buffer.mUnityRef = ++mLastBufferRef;
+	assert( Buffer.mUnityRef != 0 );
+	Buffer.mBufferMeta = FrameMeta;
+
+	//	try and create the actual buffer if we're in the render thread
+	//	okay if it fail
+	AllocDynamicTexture( Buffer );
+
+	return Unity::TDynamicTexture( Buffer.mUnityRef );
+}
+#endif
+
+
+#if defined(ENABLE_OPENGL)
+bool TUnityDevice_Opengl::AllocDynamicTexture(TOpenglBufferCache& Buffer)
+{
+	//	already allocated
+	if ( Buffer.IsAllocated() )
+		return true;
+
+	//	shouldnt have a buffer cache with a bad meta
+	auto& FrameMeta = Buffer.mBufferMeta;
+	assert( FrameMeta.IsValid() );
+	if ( !FrameMeta.IsValid() )
+		return false;
+
+	//	not in render thread
+	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+		return false;
+	
 	if ( !glewIsSupported( "GL_ARB_pixel_buffer_object" ) )
-		return Unity::TDynamicTexture();
+		return false;
 
 	//	https://developer.apple.com/library/mac/documentation/graphicsimaging/conceptual/opengl-macprogguide/opengl_texturedata/opengl_texturedata.html
-	GLuint BufferName = GL_INVALID_BUFFER_NAME;
-	glGenBuffersARB( 1, &BufferName );
-	if ( HasError() || BufferName == GL_INVALID_BUFFER_NAME )
-		return Unity::TDynamicTexture();
+	glGenBuffersARB( 1, &Buffer.mBufferName );
+	if ( HasError() || Buffer.mBufferName == GL_INVALID_BUFFER_NAME )
+		return false;
 	
 	//	initialise/validate name with a bind
-	Unity::TDynamicTexture_Opengl NewTexture( BufferName );
-	if ( !NewTexture.Bind(*this) )
-	{
-		DeleteTexture( NewTexture );
-		return Unity::TDynamicTexture();
-	}
+	if ( !Bind(Buffer) )
+		return false;
 
 	//	init buffer storage
-	static bool UseStreamUsage = false;
-	auto Usage = UseStreamUsage ? GL_STREAM_DRAW : GL_DYNAMIC_DRAW;
+	auto Usage = OPENGL_USE_STREAM_TEXTURE ? GL_STREAM_DRAW : GL_DYNAMIC_DRAW;
 	glBufferData( GL_PIXEL_UNPACK_BUFFER, FrameMeta.GetDataSize(), nullptr, Usage );
 	if ( HasError() )
-	{
-		DeleteTexture( NewTexture );
-		return Unity::TDynamicTexture();
-	}
+		return false;
+	
+	//	pre-fetch map
+	AllocMap( Buffer );
 
-	NewTexture.Unbind(*this);
+	Unbind( Buffer );
 
-	return NewTexture;
+	return true;
 }
 #endif
 
 #if defined(ENABLE_OPENGL)
-bool Unity::TDynamicTexture_Opengl::Bind(TUnityDevice_Opengl& Device)
+bool TUnityDevice_Opengl::Bind(Unity::TDynamicTexture& Texture)
 {
-	TUnityDeviceContextScope Context( Device );
+	TUnityDeviceContextScope Context( *this );
 	if ( !Context )
 		return false;
 
-	auto Name = GetName();
-	glBindBuffer( GL_PIXEL_UNPACK_BUFFER, Name );
+	ofMutex::ScopedLock Lock( mBufferCache );
+	auto* pBuffer = mBufferCache.Find( Texture.GetInteger() );
+	if ( !pBuffer )
+		return false;
+
+	//	not allocated yet
+	if ( !pBuffer->IsAllocated() )
+		return false;
+
+	glBindBuffer( GL_PIXEL_UNPACK_BUFFER, pBuffer->mBufferName );
 	if ( TUnityDevice_Opengl::HasError() )
 		return false;
 	return true;
 }
 #endif
 
+#if defined(ENABLE_OPENGL)
+bool TUnityDevice_Opengl::Unbind(Unity::TDynamicTexture& Texture)
+{
+	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+		return false;
+
+	glBindBuffer( GL_PIXEL_UNPACK_BUFFER, GL_INVALID_BUFFER_NAME );
+	if ( TUnityDevice_Opengl::HasError() )
+		return false;
+	return true;
+}
+#endif
+
+
+#if defined(ENABLE_OPENGL)
+bool TUnityDevice_Opengl::Bind(TOpenglBufferCache& Buffer)
+{
+	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+		return false;
+
+	//	not allocated yet
+	if ( !Buffer.IsAllocated() )
+		return false;
+
+	glBindBuffer( GL_PIXEL_UNPACK_BUFFER, Buffer.mBufferName );
+	if ( TUnityDevice_Opengl::HasError() )
+		return false;
+	return true;
+}
+#endif
+
+#if defined(ENABLE_OPENGL)
+bool TUnityDevice_Opengl::Unbind(TOpenglBufferCache& Buffer)
+{
+	Unity::TDynamicTexture Texture( Buffer.mBufferName );
+	return Unbind( Texture );
+}
+#endif
 
 #if defined(ENABLE_OPENGL)
 TFrameMeta TUnityDevice_Opengl::GetTextureMeta(Unity::TTexture Texture)
@@ -510,24 +581,56 @@ bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture Texture,const TFramePixels
 
 
 #if defined(ENABLE_OPENGL)
-bool TUnityDevice_Opengl::CopyTexture(Unity::TDynamicTexture Texture,const TFramePixels& Frame,bool Blocking)
+bool TUnityDevice_Opengl::AllocMap(TOpenglBufferCache& Buffer)
 {
+	ofScopeTimerWarning timer_glTexSubImage2D(__FUNCTION__,1);
+
+	//	already mapped
+	if ( Buffer.mDataMap )
+		return true;
+
+	//	out of thread
 	TUnityDeviceContextScope Context( *this );
 	if ( !Context )
-		return Unity::TTexture();
-
-	auto& DynamicTexture = static_cast<Unity::TDynamicTexture_Opengl&>( Texture );
-	if ( !DynamicTexture.Bind(*this) )
+	{
+		Buffer.mMapRequested = true;
+		return false;
+	}
+	
+	if ( !Bind( Buffer ) )
 		return false;
 
-	//	get data to write to
-	//	gr: safety here? eg, data length & mutex?
-	auto* DstData = glMapBuffer( GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY );
-	if ( !DstData )
+	Buffer.mDataMap = glMapBuffer( GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY );
+	if ( !Buffer.mDataMap )
 		return false;
-	memcpy( DstData, Frame.GetData(), Frame.GetDataSize() );
+
+	if ( HasError() )
+		return false;
+
+	Buffer.mMapRequested = false;
+	return true;
+}
+#endif
+
+#if defined(ENABLE_OPENGL)
+bool TUnityDevice_Opengl::FreeMap(TOpenglBufferCache& Buffer)
+{
+	ofScopeTimerWarning timer_glTexSubImage2D(__FUNCTION__,1);
+
+	//	not mapped
+	if ( !Buffer.mDataMap )
+		return true;
+
+	//	out of thread
+	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+		return false;
+	
+	if ( !Bind( Buffer ) )
+		return false;
+
 	auto Error = glUnmapBuffer( GL_PIXEL_UNPACK_BUFFER );
-
+	Buffer.mDataMap = nullptr;
 	//	gr: error, may not be an error...
 	//	http://stackoverflow.com/questions/19544691/glunmapbuffer-return-value-and-error-code
 	//	http://www.opengl.org/wiki/Buffer_Object#Mapping
@@ -542,7 +645,33 @@ bool TUnityDevice_Opengl::CopyTexture(Unity::TDynamicTexture Texture,const TFram
 	if ( HasError() )
 		return false;
 
-	DynamicTexture.Unbind(*this);
+	return true;
+}
+#endif
+
+
+#if defined(ENABLE_OPENGL)
+bool TUnityDevice_Opengl::CopyTexture(Unity::TDynamicTexture Texture,const TFramePixels& Frame,bool Blocking)
+{
+	ofMutex::ScopedLock lock( mBufferCache );
+	auto* Buffer = mBufferCache.Find( Texture.GetInteger() );
+	if ( !Buffer )
+		return false;
+	
+	//	alloc[if we can] in case it's not already done
+	AllocDynamicTexture( *Buffer );
+	if ( !Buffer->IsAllocated() )
+		return false;
+
+	if ( !AllocMap( *Buffer ) )
+		return false;
+
+	//	gr: do safety check here
+	int DataSize = ofMin( Frame.GetDataSize(), Buffer->mBufferMeta.GetDataSize() );
+	memcpy( Buffer->mDataMap, Frame.GetData(), DataSize );
+
+	//	umap if in render thread?
+	//FreeMap( Buffer );
 
 	return true;
 }
@@ -552,25 +681,44 @@ bool TUnityDevice_Opengl::CopyTexture(Unity::TDynamicTexture Texture,const TFram
 #if defined(ENABLE_OPENGL)
 bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture DstTextureU,Unity::TDynamicTexture SrcTextureU)
 {
+	ofScopeTimerWarning Timer(__FUNCTION__,1);
 	TUnityDeviceContextScope Context( *this );
 	if ( !Context )
 		return false;
 
-	TFrameMeta TextureMeta = GetTextureMeta( DstTextureU );
-	auto& SrcTexture = static_cast<Unity::TDynamicTexture_Opengl&>( SrcTextureU );
-	auto& DstTexture = static_cast<Unity::TTexture_Opengl&>( DstTextureU );
-	if ( !SrcTexture.Bind(*this) )
+	ofMutex::ScopedLock Lock( mBufferCache );
+	auto* Buffer = mBufferCache.Find( SrcTextureU.GetInteger() );
+	if ( !Buffer )
 		return false;
+
+	//	need to unmap in case it's currently "open"
+	FreeMap( *Buffer );
+
+	//auto& SrcTexture = static_cast<Unity::TDynamicTexture_Opengl&>( SrcTextureU );
+	if ( !Bind(*Buffer) )
+		return false;
+
+	auto& DstTexture = static_cast<Unity::TTexture_Opengl&>( DstTextureU );
 	if ( !DstTexture.Bind(*this) )
 		return false;
+	
 
+//	TFrameMeta TextureMeta = GetTextureMeta( DstTextureU );
+	TFrameMeta TextureMeta = Buffer->mBufferMeta;
 	auto Format = GetFormat( TextureMeta.mFormat );
-	glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, TextureMeta.mWidth, TextureMeta.mHeight, Format, GL_UNSIGNED_BYTE, nullptr );
-	if ( HasError() )
-		return false;
+	{
+		ofScopeTimerWarning timer_glTexSubImage2D("glTexSubImage2D",1);
+		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, TextureMeta.mWidth, TextureMeta.mHeight, Format, GL_UNSIGNED_BYTE, nullptr );
+		if ( HasError() )
+			return false;
+	}
 
-	SrcTexture.Unbind(*this);
+	//	remap, for speed
+	if ( OPENGL_REREADY_MAP )
+		AllocMap( *Buffer );
+
 	DstTexture.Unbind(*this);
+	Unbind(*Buffer);
 
 	return true;
 }
@@ -601,22 +749,30 @@ bool TUnityDevice_Opengl::DeleteTexture(Unity::TTexture& TextureU)
 
 
 #if defined(ENABLE_OPENGL)
-bool TUnityDevice_Opengl::DeleteTexture(Unity::TDynamicTexture& TextureU)
+bool TUnityDevice_Opengl::DeleteTexture(Unity::TDynamicTexture& Texture)
 {
-	auto Texture = static_cast<Unity::TDynamicTexture_Opengl&>( TextureU );
+	ofMutex::ScopedLock Lock( mBufferCache );
+	auto* Buffer = mBufferCache.Find( Texture.GetInteger() );
+	if ( !Buffer )
+		return false;
 
+	bool Result = DeleteTexture( *Buffer );
+	Texture = Unity::TDynamicTexture();
+	return Result;
+}
+#endif
+
+
+#if defined(ENABLE_OPENGL)
+bool TUnityDevice_Opengl::DeleteTexture(TOpenglBufferCache& Buffer)
+{
+	Buffer.mDeleteRequested = true;
 	TUnityDeviceContextScope Context( *this );
 	if ( !Context )
-	{
-		mDeleteBufferQueue.PushBackUnique( Texture.GetName() );
-		TextureU = Unity::TDynamicTexture();
-		return true;
-	}
+		return false;
 
-	//	gr: need to know if we created this texture or not
-	auto Name = Texture.GetName();
-	glDeleteBuffers( 1, &Name );
-	TextureU = Unity::TDynamicTexture();
+	glDeleteBuffers( 1, &Buffer.mBufferName );
+	Buffer.mBufferName = GL_INVALID_BUFFER_NAME;
 
 	return true;
 }
@@ -670,6 +826,8 @@ std::string TUnityDevice_Opengl::GetString(GLenum StringId)
 #if defined(ENABLE_OPENGL)
 void TUnityDevice_Opengl::OnRenderThreadUpdate()
 {
+	TUnityDevice::OnRenderThreadUpdate();
+
 	if ( mFirstRun )
 	{
 		mFirstRun = false;
@@ -684,6 +842,26 @@ void TUnityDevice_Opengl::OnRenderThreadUpdate()
 		std::string Debug = "Opengl version ";
 		Debug += GetString( GL_VERSION );
 		Unity::DebugLog( Debug );
+	}
+
+	//	do we have some dynamic textures we need to allocate or delete?
+	ofMutex::ScopedLock Lock( mBufferCache );
+	for ( int b=mBufferCache.GetSize()-1;	b>=0;	b-- )
+	{
+		auto& Buffer = mBufferCache[b];
+		if ( Buffer.mDeleteRequested )
+		{
+			DeleteTexture( Buffer );
+			mBufferCache.RemoveBlock( b, 1 );
+			continue;
+		}
+
+		//	need to alloc buffer if we need to
+		AllocDynamicTexture( Buffer );
+	
+		if ( Buffer.mMapRequested )
+			AllocMap( Buffer );
+
 	}
 }
 #endif
