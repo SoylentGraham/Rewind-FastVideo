@@ -23,10 +23,13 @@ public:
 	TFastTextureUploadThread(TFastTexture& Parent,TUnityDevice& Device);
 	~TFastTextureUploadThread();
 
-	bool					IsValid();				//	check was setup okay
 	virtual void			threadedFunction();
+	void					Update();
+
+	bool					IsValid();				//	check was setup okay
 	bool					CopyToTarget(Unity::TTexture TargetTexture,SoyTime& TargetTextureFrame);
 	
+private:
 	bool					CreateDynamicTexture();
 	void					DeleteDynamicTexture();
 
@@ -37,7 +40,7 @@ public:
 	TUnityDevice&			mDevice;
 
 	ofMutex					mDynamicTextureLock;
-	Unity::TTexture			mDynamicTexture;
+	Unity::TDynamicTexture	mDynamicTexture;
 	SoyTime					mDynamicTextureFrame;	//	frame in current dynamic texture
 	bool					mDynamicTextureChanged;	//	locked via mDynamicTextureLock
 };
@@ -62,12 +65,13 @@ public:
 	SoyTime				GetFrameTime();
 	void				SetFrameTime(SoyTime Time);
 
-	bool				UpdateFrameTexture(Unity::TTexture Texture,SoyTime& FrameCopied);		//	copy latest frame to texture. returns if changed
+	bool				UpdateFrameTexture(Unity::TTexture Texture,SoyTime& FrameCopied);			//	copy latest frame to texture. returns if changed
+	bool				UpdateFrameTexture(Unity::TDynamicTexture Texture,SoyTime& FrameCopied);	//	copy latest frame to texture. returns if changed
 
 	Unity::TTexture		GetTargetTexture()		{	return mTargetTexture;	}
 
 private:
-	bool				CreateUploadThread();
+	bool				CreateUploadThread(bool IsRenderThread);
 
 	void				DeleteTargetTexture();
 	void				DeleteDecoderThread();

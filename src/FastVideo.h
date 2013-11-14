@@ -31,6 +31,8 @@ static bool SHOW_POOL_FULL_MESSAGE	=	true;
 
 #define REAL_TIME_MODIFIER				1.0f	//	speed up/slow down real life time
 
+#define FORCE_SINGLE_THREAD_UPLOAD
+
 static bool DEBUG_RENDER_LAG = true;
 
 class TFastTexture;
@@ -80,8 +82,10 @@ namespace Unity
 	typedef unsigned long long	ulong;
 	typedef void (*TDebugLogFunc)(const char*);
 
-	void	DebugLog(const char* str);
-	void	DebugLog(const std::string& string);
+	void		DebugLog(const char* str);
+	inline void	DebugLog(const std::string& String)		{	DebugLog( String.c_str() );	}
+	void		DebugError(const char* str);
+	inline void	DebugError(const std::string& String)	{	DebugError( String.c_str() );	}
 };
 
 extern "C" EXPORT_API Unity::ulong	AllocInstance();

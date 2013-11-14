@@ -121,6 +121,9 @@ Unity::TTexture TUnityDevice_Dx11::AllocTexture(TFrameMeta FrameMeta)
 		
 	ID3D11Texture2D* pTexture = NULL;
 	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+		return Unity::TTexture();
+
 	auto Result = mDevice->CreateTexture2D( &Desc, NULL, &pTexture );
 	if ( Result != S_OK )
 	{
@@ -143,7 +146,11 @@ bool TUnityDevice_Dx11::DeleteTexture(Unity::TTexture& Texture)
 	if ( !TextureDx )
 		return false;
 
+	ID3D11Texture2D* pTexture = NULL;
 	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+		return Unity::TTexture();
+
 	TextureDx->Release();
 	Texture = Unity::TTexture();
 	return true;
@@ -157,7 +164,11 @@ TFrameMeta TUnityDevice_Dx11::GetTextureMeta(Unity::TTexture Texture)
 	if ( !TextureDx )
 		return TFrameMeta();
 
+	ID3D11Texture2D* pTexture = NULL;
 	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+		return Unity::TTexture();
+
 	D3D11_TEXTURE2D_DESC Desc;
 	TextureDx->GetDesc( &Desc );
 
@@ -199,7 +210,11 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture TextureU,const TFramePixels&
 		return false;
 
 	auto& Device11 = GetDevice();
+	ID3D11Texture2D* pTexture = NULL;
 	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+		return Unity::TTexture();
+
 
 	TAutoRelease<ID3D11DeviceContext> ctx;
 	Device11.GetImmediateContext( &ctx.mObject );
@@ -262,7 +277,11 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture DstTextureU,Unity::TTexture 
 		return false;
 
 	auto& Device11 = GetDevice();
+	ID3D11Texture2D* pTexture = NULL;
 	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+		return Unity::TTexture();
+
 
 	TAutoRelease<ID3D11DeviceContext> ctx;
 	Device11.GetImmediateContext( &ctx.mObject );
@@ -286,21 +305,21 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture DstTextureU,Unity::TTexture 
 
 
 #if defined(ENABLE_OPENGL)
-bool Unity::TTexture_Opengl::BindTexture()
+bool Unity::TTexture_Opengl::Bind(TUnityDevice_Opengl& Device)
 {
 	if ( !IsValid() )
 		return false;
 	
-	auto Texture = GetTextureId();
-	glBindTexture( GL_TEXTURE_2D, Texture );
+	auto TextureName = GetName();
+	glBindTexture( GL_TEXTURE_2D, TextureName );
 	if ( TUnityDevice_Opengl::HasError() )
 		return false;
 
 	//	gr: this only works AFTER glBindTexture: http://www.opengl.org/sdk/docs/man/xhtml/glIsTexture.xml
-	if ( !glIsTexture(Texture) )
+	if ( !glIsTexture(TextureName) )
 	{
 		BufferString<200> Debug;
-		Debug << "Bound invalid texture id [" << Texture << "]";
+		Debug << "Bound invalid texture name [" << TextureName << "]";
 		Unity::DebugLog( Debug );
 		return false;
 	}
@@ -312,10 +331,22 @@ bool Unity::TTexture_Opengl::BindTexture()
 
 
 #if defined(ENABLE_OPENGL)
-TUnityDevice_Opengl::TUnityDevice_Opengl()
+bool Unity::TTexture_Opengl::Unbind(TUnityDevice_Opengl& Device)
 {
+	glBindTexture( GL_TEXTURE_2D, GL_INVALID_TEXTURE_NAME );
+	return true;
 }
 #endif
+
+#if defined(ENABLE_OPENGL)
+bool Unity::TDynamicTexture_Opengl::Unbind(TUnityDevice_Opengl& Device)
+{
+	glBindBuffer( GL_PIXEL_UNPACK_BUFFER, GL_INVALID_BUFFER_NAME );
+	return true;
+}
+#endif
+
+
 
 
 #if defined(ENABLE_OPENGL)
@@ -335,15 +366,18 @@ Unity::TTexture TUnityDevice_Opengl::AllocTexture(TFrameMeta FrameMeta)
 
 	//	alloc
 	TUnityDeviceContextScope Context( *this );
-	GLuint TextureId = GL_INVALID_TEXTURE_ID;
-	glGenTextures( 1, &TextureId );
-	if ( HasError() || TextureId == GL_INVALID_TEXTURE_ID )
+	if ( !Context )
 		return Unity::TTexture();
-	Unity::TTexture NewTexture( TextureId );
+
+	GLuint TextureName = GL_INVALID_TEXTURE_NAME;
+	glGenTextures( 1, &TextureName );
+	if ( HasError() || TextureName == GL_INVALID_TEXTURE_NAME )
+		return Unity::TTexture();
+	Unity::TTexture NewTexture( TextureName );
 	auto& Texture = static_cast<Unity::TTexture_Opengl&>( NewTexture );
 
 	//	bind so we can initialise
-	if ( !Texture.BindTexture() )
+	if ( !Texture.Bind(*this) )
 	{
 		DeleteTexture( Texture );
 		return Texture;
@@ -365,11 +399,70 @@ Unity::TTexture TUnityDevice_Opengl::AllocTexture(TFrameMeta FrameMeta)
 
 
 #if defined(ENABLE_OPENGL)
+Unity::TDynamicTexture TUnityDevice_Opengl::AllocDynamicTexture(TFrameMeta FrameMeta)
+{
+	if ( !FrameMeta.IsValid() )
+		return Unity::TDynamicTexture();
+
+	if ( !glewIsSupported( "GL_ARB_pixel_buffer_object" ) )
+		return Unity::TDynamicTexture();
+
+	//	https://developer.apple.com/library/mac/documentation/graphicsimaging/conceptual/opengl-macprogguide/opengl_texturedata/opengl_texturedata.html
+	GLuint BufferName = GL_INVALID_BUFFER_NAME;
+	glGenBuffersARB( 1, &BufferName );
+	if ( HasError() || BufferName == GL_INVALID_BUFFER_NAME )
+		return Unity::TDynamicTexture();
+	
+	//	initialise/validate name with a bind
+	Unity::TDynamicTexture_Opengl NewTexture( BufferName );
+	if ( !NewTexture.Bind(*this) )
+	{
+		DeleteTexture( NewTexture );
+		return Unity::TDynamicTexture();
+	}
+
+	//	init buffer storage
+	static bool UseStreamUsage = false;
+	auto Usage = UseStreamUsage ? GL_STREAM_DRAW : GL_DYNAMIC_DRAW;
+	glBufferData( GL_PIXEL_UNPACK_BUFFER, FrameMeta.GetDataSize(), nullptr, Usage );
+	if ( HasError() )
+	{
+		DeleteTexture( NewTexture );
+		return Unity::TDynamicTexture();
+	}
+
+	NewTexture.Unbind(*this);
+
+	return NewTexture;
+}
+#endif
+
+#if defined(ENABLE_OPENGL)
+bool Unity::TDynamicTexture_Opengl::Bind(TUnityDevice_Opengl& Device)
+{
+	TUnityDeviceContextScope Context( Device );
+	if ( !Context )
+		return false;
+
+	auto Name = GetName();
+	glBindBuffer( GL_PIXEL_UNPACK_BUFFER, Name );
+	if ( TUnityDevice_Opengl::HasError() )
+		return false;
+	return true;
+}
+#endif
+
+
+#if defined(ENABLE_OPENGL)
 TFrameMeta TUnityDevice_Opengl::GetTextureMeta(Unity::TTexture Texture)
 {
+	/*
 	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+		return TFrameMeta();
+		*/
 	auto& TextureGl = static_cast<Unity::TTexture_Opengl&>( Texture );
-	if ( !TextureGl.BindTexture() )
+	if ( !TextureGl.Bind(*this) )
 		return TFrameMeta();
 	
 	GLint Width,Height,Formatgl;
@@ -378,6 +471,9 @@ TFrameMeta TUnityDevice_Opengl::GetTextureMeta(Unity::TTexture Texture)
 	glGetTexLevelParameteriv( GL_TEXTURE_2D, Lod, GL_TEXTURE_HEIGHT, &Height );
 	glGetTexLevelParameteriv( GL_TEXTURE_2D, Lod, GL_TEXTURE_INTERNAL_FORMAT, &Formatgl );
 	
+	if ( HasError() )
+		return TFrameMeta();
+
 	auto Format = GetFormat( Formatgl );
 	TFrameMeta TextureMeta( Width, Height, Format );
 	return TextureMeta;
@@ -386,11 +482,21 @@ TFrameMeta TUnityDevice_Opengl::GetTextureMeta(Unity::TTexture Texture)
 
 
 #if defined(ENABLE_OPENGL)
+TFrameMeta TUnityDevice_Opengl::GetTextureMeta(Unity::TDynamicTexture Texture)
+{
+	return TFrameMeta();
+}
+#endif
+
+#if defined(ENABLE_OPENGL)
 bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking)
 {
 	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+		return Unity::TTexture();
+
 	auto& TextureGl = static_cast<Unity::TTexture_Opengl&>( Texture );
-	if ( !TextureGl.BindTexture() )
+	if ( !TextureGl.Bind(*this) )
 		return false;
 
 	GLint Format = GetFormat( Frame.mMeta.mFormat );
@@ -404,11 +510,69 @@ bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture Texture,const TFramePixels
 
 
 #if defined(ENABLE_OPENGL)
-bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture DstTextureU,Unity::TTexture SrcTextureU)
+bool TUnityDevice_Opengl::CopyTexture(Unity::TDynamicTexture Texture,const TFramePixels& Frame,bool Blocking)
 {
 	TUnityDeviceContextScope Context( *this );
-	//	there is no fast texture->texture copy in opengl...
-	return false;
+	if ( !Context )
+		return Unity::TTexture();
+
+	auto& DynamicTexture = static_cast<Unity::TDynamicTexture_Opengl&>( Texture );
+	if ( !DynamicTexture.Bind(*this) )
+		return false;
+
+	//	get data to write to
+	//	gr: safety here? eg, data length & mutex?
+	auto* DstData = glMapBuffer( GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY );
+	if ( !DstData )
+		return false;
+	memcpy( DstData, Frame.GetData(), Frame.GetDataSize() );
+	auto Error = glUnmapBuffer( GL_PIXEL_UNPACK_BUFFER );
+
+	//	gr: error, may not be an error...
+	//	http://stackoverflow.com/questions/19544691/glunmapbuffer-return-value-and-error-code
+	//	http://www.opengl.org/wiki/Buffer_Object#Mapping
+	if ( Error != GL_TRUE )
+	{
+		BufferString<100> Debug;
+		Debug << "glUnmapBuffer returned " << Error << ", may be harmless.";
+		Unity::DebugError( Debug );
+	}
+	
+
+	if ( HasError() )
+		return false;
+
+	DynamicTexture.Unbind(*this);
+
+	return true;
+}
+#endif
+
+
+#if defined(ENABLE_OPENGL)
+bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture DstTextureU,Unity::TDynamicTexture SrcTextureU)
+{
+	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+		return false;
+
+	TFrameMeta TextureMeta = GetTextureMeta( DstTextureU );
+	auto& SrcTexture = static_cast<Unity::TDynamicTexture_Opengl&>( SrcTextureU );
+	auto& DstTexture = static_cast<Unity::TTexture_Opengl&>( DstTextureU );
+	if ( !SrcTexture.Bind(*this) )
+		return false;
+	if ( !DstTexture.Bind(*this) )
+		return false;
+
+	auto Format = GetFormat( TextureMeta.mFormat );
+	glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, TextureMeta.mWidth, TextureMeta.mHeight, Format, GL_UNSIGNED_BYTE, nullptr );
+	if ( HasError() )
+		return false;
+
+	SrcTexture.Unbind(*this);
+	DstTexture.Unbind(*this);
+
+	return true;
 }
 #endif
 
@@ -416,37 +580,47 @@ bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture DstTextureU,Unity::TTextur
 #if defined(ENABLE_OPENGL)
 bool TUnityDevice_Opengl::DeleteTexture(Unity::TTexture& TextureU)
 {
+	auto Texture = static_cast<Unity::TTexture_Opengl&>( TextureU );
+
 	TUnityDeviceContextScope Context( *this );
-	/*
-	 auto* DstTexture = static_cast<Unity::TTexture_DX11&>( DstTexutreU ).GetTexture();
-	 auto* SrcTexture = static_cast<Unity::TTexture_DX11&>( SrcTexutreU ).GetTexture();
-	 if ( !DstTexture || !SrcTexture )
-	 return false;
-	 
-	 auto& Device11 = GetDevice();
-	 
-	 ofMutex::ScopedLock ContextLock( mContextLock );
-	 TAutoRelease<ID3D11DeviceContext> ctx;
-	 Device11.GetImmediateContext( &ctx.mObject );
-	 if ( !ctx )
-	 {
-	 Unity::DebugLog("Failed to get device context");
-	 return false;
-	 }
-	 
-	 //	copy to real texture (gpu->gpu)
-	 //	gr: this will fail silently if dimensions/format different
-	 {
-	 //ofScopeTimerWarning MapTimer("DX::copy resource",2);
-	 ctx->CopyResource( DstTexture, SrcTexture );
-	 }
-	 
-	 return true;
-	 */
-	return false;
+	if ( !Context )
+	{
+		mDeleteTextureQueue.PushBackUnique( Texture.GetName() );
+		TextureU = Unity::TTexture();
+		return true;
+	}
+
+	//	gr: need to know if we created this texture or not
+	auto Name = Texture.GetName();
+	//glDeleteTextures( 1, &Name );
+	TextureU = Unity::TTexture();
+
+	return true;
 }
 #endif
 
+
+#if defined(ENABLE_OPENGL)
+bool TUnityDevice_Opengl::DeleteTexture(Unity::TDynamicTexture& TextureU)
+{
+	auto Texture = static_cast<Unity::TDynamicTexture_Opengl&>( TextureU );
+
+	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+	{
+		mDeleteBufferQueue.PushBackUnique( Texture.GetName() );
+		TextureU = Unity::TDynamicTexture();
+		return true;
+	}
+
+	//	gr: need to know if we created this texture or not
+	auto Name = Texture.GetName();
+	glDeleteBuffers( 1, &Name );
+	TextureU = Unity::TDynamicTexture();
+
+	return true;
+}
+#endif
 
 #if defined(ENABLE_OPENGL)
 BufferString<100> OpenglError_ToString(GLenum Error)
@@ -480,3 +654,36 @@ bool TUnityDevice_Opengl::HasError()
 }
 #endif
 	
+
+
+#if defined(ENABLE_OPENGL)
+std::string TUnityDevice_Opengl::GetString(GLenum StringId)
+{
+	auto* Stringgl = glGetString( StringId );
+	if ( !Stringgl )
+		return "";
+	std::string String = reinterpret_cast<const char*>( Stringgl );
+	return String;
+}
+#endif
+
+#if defined(ENABLE_OPENGL)
+void TUnityDevice_Opengl::OnRenderThreadUpdate()
+{
+	if ( mFirstRun )
+	{
+		mFirstRun = false;
+		auto Error = glewInit();
+		if ( Error != GLEW_OK )
+		{
+			BufferString<100> Debug;
+			Debug << "Failed to initalise GLEW: " << Error;
+			Unity::DebugError( Debug );
+		}
+
+		std::string Debug = "Opengl version ";
+		Debug += GetString( GL_VERSION );
+		Unity::DebugLog( Debug );
+	}
+}
+#endif

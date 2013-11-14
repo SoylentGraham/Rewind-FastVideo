@@ -5,7 +5,7 @@
 
 
 #if defined(TARGET_WINDOWS)
-	#define ENABLE_DX11
+	//#define ENABLE_DX11
 	#define ENABLE_OPENGL
 #elif defined(TARGET_OSX)
 	#define ENABLE_OPENGL
@@ -16,8 +16,10 @@
 #endif
 
 #if defined(ENABLE_OPENGL)
+#define GLEW_STATIC
 	#if defined(TARGET_WINDOWS)
-		#include <gl/GL.h>
+		#include <gl/glew.h>
+//		#include <gl/GL.h>
 	#else
 		#include <Opengl/gl.h>
 		#include <OpenGL/OpenGL.h>
@@ -25,7 +27,8 @@
 	#pragma comment(lib,"opengl32.lib")
 
 #define GL_INVALID_FORMAT		0
-#define GL_INVALID_TEXTURE_ID	0
+#define GL_INVALID_TEXTURE_NAME	0u
+#define GL_INVALID_BUFFER_NAME	0u
 #endif
 
 
@@ -138,8 +141,13 @@ namespace Unity
 	ofPtr<TUnityDevice> AllocDevice(Unity::TGfxDevice::Type Type,void* Device);
     
     class TTexture;
-    class TTexture_Dx11;
+	class TDynamicTexture;
+
+	class TTexture_Dx11;
+	class TDynamicTexture_Dx11;
+
     class TTexture_Opengl;
+	class TDynamicTexture_Opengl;
 };
 
 class Unity::TTexture
@@ -167,6 +175,35 @@ private:
     void*               mObject;	//	pointer to type in dx, integer in opengl. ptr<>int? erk
 };
 
+
+
+//	just a dynamic texture in DX11, PBO in opengl
+class Unity::TDynamicTexture
+{
+public:
+    TDynamicTexture() :
+		mObject     (nullptr)
+    {
+    }
+    explicit TDynamicTexture(void* Object) :
+		mObject     ( Object )
+    {
+    }
+	explicit TDynamicTexture(uint32 Id) :
+		mObject     ( reinterpret_cast<void*>(Id) )
+    {
+    }
+    virtual bool        IsValid() const {   return (mObject != nullptr);  }	//	nullpointer != 0, so might have issues here in c++11
+	operator            bool()			{	return IsValid();	}
+
+	uint32				GetInteger() const	{	return reinterpret_cast<uint32>( mObject );	}
+	void*				GetPointer() const	{	return mObject;	}
+
+private:
+    void*               mObject;	//	pointer to type in dx, integer in opengl. ptr<>int? erk
+};
+
+
 template<class STRING>
 inline STRING& operator<<(STRING& str,const Unity::TGfxDevice::Type& Value)
 {
@@ -193,37 +230,70 @@ public:
 class Unity::TTexture_Opengl : public Unity::TTexture
 {
 public:
-    TTexture_Opengl(GLuint Texture=0) :
-		TTexture    ( Texture )
+    TTexture_Opengl(GLuint TextureName=GL_INVALID_TEXTURE_NAME) :
+		TTexture    ( TextureName )
     {
     }
     
-	GLuint			GetTextureId()    {   return static_cast<GLuint>( GetInteger() );   }
-	bool			BindTexture();
+	GLuint			GetName()    {   return static_cast<GLuint>( GetInteger() );   }
+	bool			Bind(TUnityDevice_Opengl& Device);
+	bool			Unbind(TUnityDevice_Opengl& Device);
 };
 #endif
 
+#if defined(ENABLE_OPENGL)
+class Unity::TDynamicTexture_Opengl : public Unity::TDynamicTexture
+{
+public:
+    TDynamicTexture_Opengl(GLuint TextureName=GL_INVALID_BUFFER_NAME) :
+		TDynamicTexture	( TextureName )
+    {
+    }
+
+	GLuint			GetName()    {   return static_cast<GLuint>( GetInteger() );   }
+	bool			Bind(TUnityDevice_Opengl& Device);
+	bool			Unbind(TUnityDevice_Opengl& Device);
+};
+#endif
 
 
 //	interface to unity gfx system
 class TUnityDevice
 {
 public:
-	TUnityDevice()				{}
-	virtual ~TUnityDevice()		{}
+	TUnityDevice() :
+		mRenderThreadActive	( false )
+	{
+	}
+	virtual ~TUnityDevice()	
+	{
+		assert( !mRenderThreadActive );
+	}
 
-	TFrameMeta              GetTextureMeta(Unity::TTexture* Texture)    {   return Texture ? GetTextureMeta(*Texture) : TFrameMeta();   }
-    
 	virtual bool			AllowOperationsOutOfRenderThread() const=0;
+	bool					IsRenderThreadActive() const			{	return mRenderThreadActive;	}
+	virtual void			OnRenderThreadBegin()					{	mRenderThreadActive = true;	}	//	callback during render thread in case we can only do certain operations in render thread
+	virtual void			OnRenderThreadUpdate()					{	assert( mRenderThreadActive );	}	//	callback during render thread in case we can only do certain operations in render thread
+	virtual void			OnRenderThreadEnd()						{	mRenderThreadActive = false;	}	//	callback during render thread in case we can only do certain operations in render thread
+
 	virtual bool            IsValid()=0;
-    virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta)=0;
+    virtual Unity::TTexture			AllocTexture(TFrameMeta FrameMeta)=0;
+    virtual Unity::TDynamicTexture	AllocDynamicTexture(TFrameMeta FrameMeta)=0;
     virtual bool            DeleteTexture(Unity::TTexture& Texture)=0;
+    virtual bool            DeleteTexture(Unity::TDynamicTexture& Texture)=0;
 	virtual TFrameMeta      GetTextureMeta(Unity::TTexture Texture)=0;
+	virtual TFrameMeta      GetTextureMeta(Unity::TDynamicTexture Texture)=0;
+	TFrameMeta              GetTextureMeta(Unity::TTexture* Texture)		{   return Texture ? GetTextureMeta(*Texture) : TFrameMeta();   }
+	TFrameMeta              GetTextureMeta(Unity::TDynamicTexture* Texture)	{   return Texture ? GetTextureMeta(*Texture) : TFrameMeta();   }
 	virtual bool            CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking)=0;
-	virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TTexture SrcTexture)=0;
+	virtual bool            CopyTexture(Unity::TDynamicTexture Texture,const TFramePixels& Frame,bool Blocking)=0;
+	virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TDynamicTexture SrcTexture)=0;
 
 public:
 	ofMutex					mContextLock;	//	contexts are generally not threadsafe (certainly not DX11 or opengl) so make it common
+
+private:
+	bool					mRenderThreadActive;
 };
 
 
@@ -239,6 +309,20 @@ public:
 	{
 		mDevice.mContextLock.unlock();
 	}
+
+	bool			IsValid() const
+	{
+		//	fail it not allowed to do device stuff out of render thread
+		if ( !mDevice.AllowOperationsOutOfRenderThread() )
+		{
+			if ( !mDevice.IsRenderThreadActive() )
+				return false;
+		}
+		return true;
+	}
+
+	inline operator		bool() const	{	return IsValid();	}
+
 public:
 	TUnityDevice&	mDevice;
 };
@@ -253,10 +337,13 @@ public:
 	virtual bool			AllowOperationsOutOfRenderThread() const		{	return true;	}
 	virtual bool            IsValid()	{	return true;	}
     virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta);
+    virtual Unity::TDynamicTexture	AllocDynamicTexture(TFrameMeta FrameMeta);
     virtual bool            DeleteTexture(Unity::TTexture& Texture);
 	virtual TFrameMeta      GetTextureMeta(Unity::TTexture Texture);
+	virtual TFrameMeta      GetTextureMeta(Unity::TDynamicTexture Texture);
 	virtual bool            CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking);
-	virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TTexture SrcTexture);
+	virtual bool            CopyTexture(Unity::TDynamicTexture Texture,const TFramePixels& Frame,bool Blocking);
+	virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TDynamicTexture SrcTexture);
     
 	ID3D11Device&				GetDevice()		{	assert( mDevice );	return *mDevice;	}
  	static TFrameFormat::Type	GetFormat(DXGI_FORMAT Format);
@@ -276,11 +363,15 @@ public:
     
 	virtual bool			AllowOperationsOutOfRenderThread() const		{	return true;	}
 	virtual bool            IsValid()	{	return false;	}
-    virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta)          {   return Unity::TTexture();   }
+    virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta)					{   return Unity::TTexture();   }
+    virtual Unity::TDynamicTexture	AllocDynamicTexture(TFrameMeta FrameMeta)	{   return Unity::TDynamicTexture();   }
     virtual bool            DeleteTexture(Unity::TTexture& Texture)      {   Texture = Unity::TTexture();	return false;   }
+    virtual bool            DeleteTexture(Unity::TDynamicTexture& Texture)      {   Texture = Unity::TDynamicTexture();	return false;   }
 	virtual TFrameMeta      GetTextureMeta(Unity::TTexture Texture)     {   return TFrameMeta();    }
+	virtual TFrameMeta      GetTextureMeta(Unity::TDynamicTexture Texture)     {   return TFrameMeta();    }
 	virtual bool            CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking)    {   return false;   }
-    virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TTexture SrcTexture)        {   return false;   }
+	virtual bool            CopyTexture(Unity::TDynamicTexture Texture,const TFramePixels& Frame,bool Blocking)    {   return false;   }
+    virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TDynamicTexture SrcTexture)       {   return false;   }
 };
 
 
@@ -290,21 +381,33 @@ public:
 class TUnityDevice_Opengl : public TUnityDevice
 {
 public:
-	TUnityDevice_Opengl();
+	TUnityDevice_Opengl() :
+		mFirstRun	( true )
+	{
+	}
     
 	virtual bool			AllowOperationsOutOfRenderThread() const		{	return false;	}
+	virtual void			OnRenderThreadUpdate();
 	virtual bool            IsValid()	{	return true;	}
     virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta);
+    virtual Unity::TDynamicTexture	AllocDynamicTexture(TFrameMeta FrameMeta);
     virtual bool            DeleteTexture(Unity::TTexture& Texture);
+    virtual bool            DeleteTexture(Unity::TDynamicTexture& Texture);
 	virtual TFrameMeta      GetTextureMeta(Unity::TTexture Texture);
+	virtual TFrameMeta      GetTextureMeta(Unity::TDynamicTexture Texture);
 	virtual bool            CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking);
-	virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TTexture SrcTexture);
+	virtual bool            CopyTexture(Unity::TDynamicTexture Texture,const TFramePixels& Frame,bool Blocking);
+	virtual bool            CopyTexture(Unity::TTexture DstTexture,const Unity::TDynamicTexture SrcTexture);
  
 	static TFrameFormat::Type	GetFormat(GLint Format);
 	static GLint				GetFormat(TFrameFormat::Type Format);
 	static bool				HasError();	//	note: static so need parent to do a context lock
+	std::string				GetString(GLenum StringId);
 
 private:
+	bool					mFirstRun;
+	Array<GLuint>			mDeleteTextureQueue;
+	Array<GLuint>			mDeleteBufferQueue;
 };
 #endif
 

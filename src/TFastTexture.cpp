@@ -58,7 +58,7 @@ void TFastTexture::SetDevice(ofPtr<TUnityDevice> Device)
 
 	//	set new device
 	mDevice = Device;
-	CreateUploadThread();
+	CreateUploadThread(false);	//	maybe true?
 }
 
 void TFastTexture::SetState(TFastVideoState::Type State)
@@ -91,14 +91,16 @@ void TFastTexture::DeleteDecoderThread()
 	}
 }
 
-bool TFastTexture::CreateUploadThread()
+bool TFastTexture::CreateUploadThread(bool IsRenderThread)
 {
 	if ( mUploadThread )
 		return true;
 
 	//	dont bother with a seperate thread if we don't allow out-of-render-thread operations
     auto& Device = GetDevice();
-	if ( !Device.IsValid() || !Device.AllowOperationsOutOfRenderThread() )
+	if ( !Device.IsValid() )
+		return false;
+	if ( !Device.AllowOperationsOutOfRenderThread() && !IsRenderThread )
 		return false;
 
 	//	need a target texture first
@@ -151,7 +153,7 @@ bool TFastTexture::SetTexture(Unity::TTexture TargetTexture)
 	mTargetTexture = TargetTexture;
 
 	//	alloc dynamic texture
-	CreateUploadThread();
+	CreateUploadThread(false);
 	
 	//	pre-alloc pool
 	TFrameMeta FrameMeta = Device.GetTextureMeta( mTargetTexture );
@@ -213,7 +215,41 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 	return true;
 }
 
+
 bool TFastTexture::UpdateFrameTexture(Unity::TTexture Texture,SoyTime& FrameCopied)
+{
+	ofScopeTimerWarning Timer(__FUNCTION__,2);
+
+	if ( !Texture )
+		return false;
+
+    auto& Device = GetDevice();
+	if ( !Device.IsValid() )
+		return false;
+    
+	//	pop latest frame (this takes ownership)
+	SoyTime FrameTime = GetFrameTime();
+	TFramePixels* pFrame = mFrameBuffer.PopFrame( FrameTime );
+	if ( !pFrame )
+		return false;
+
+	//	copy to texture
+	if ( !Device.CopyTexture( Texture, *pFrame, false ) )
+	{
+		//	put frame back in queue
+		mFrameBuffer.PushFrame( pFrame );
+		return false;
+	}
+	FrameCopied = pFrame->mTimestamp;
+	pFrame->SetOwner( __FUNCTION__ );
+	
+	//	free frame
+	mFramePool.Free( pFrame );
+
+	return true;
+}
+
+bool TFastTexture::UpdateFrameTexture(Unity::TDynamicTexture Texture,SoyTime& FrameCopied)
 {
 	ofScopeTimerWarning Timer(__FUNCTION__,2);
 
@@ -253,8 +289,16 @@ void TFastTexture::OnPostRender()
 
 	bool TargetChanged = false;
 
+	//	somtimes need to create upload thread in the render thread
+	if ( !mUploadThread )
+		CreateUploadThread(true);
+
 	if ( mUploadThread )
 	{
+#if defined(FORCE_SINGLE_THREAD_UPLOAD)
+		mUploadThread->Update();
+#endif
+
 		//	get latest dynamic texture
 		TargetChanged = mUploadThread->CopyToTarget( mTargetTexture, mTargetTextureFrame );
 	}
@@ -367,33 +411,40 @@ void TFastTextureUploadThread::threadedFunction()
 	{
 		sleep(1);
 
-		ofMutex::ScopedLock Lock( mDynamicTextureLock );
-		
-		//	last one hasnt been used yet
-		if ( mDynamicTextureChanged )
-			continue;
+#if !defined(FORCE_SINGLE_THREAD_UPLOAD)
+		Update();
+#endif
+	}
+}
 
-		//	copy latest
-		if ( mParent.UpdateFrameTexture( mDynamicTexture, mDynamicTextureFrame ) )
-			mDynamicTextureChanged = true;
-	/*
+void TFastTextureUploadThread::Update()
+{
 	ofMutex::ScopedLock Lock( mDynamicTextureLock );
-	if ( pFrame->mTimestamp < mDynamicTextureFrame )
-	{
-		BufferString<100> Debug;
-		Debug << "New dynamic texture frame ("<< pFrame->mTimestamp << ") BEHIND current frame (" << mDynamicTextureFrame << ")";
-		Unity::DebugLog( Debug );
+		
+	//	last one hasnt been used yet
+	if ( mDynamicTextureChanged )
+		return;
 
-		if ( DYNAMIC_SKIP_OOO_FRAMES )
-			Copy = false;
-	}
-	*/
-	/*
+	//	copy latest
+	if ( mParent.UpdateFrameTexture( mDynamicTexture, mDynamicTextureFrame ) )
+		mDynamicTextureChanged = true;
+/*
+ofMutex::ScopedLock Lock( mDynamicTextureLock );
+if ( pFrame->mTimestamp < mDynamicTextureFrame )
+{
 	BufferString<100> Debug;
-	Debug << "Frame " << pFrame->mTimestamp << " Buffer -> Dynamic";
-	ofLogNotice( Debug.c_str() );
-	*/
-	}
+	Debug << "New dynamic texture frame ("<< pFrame->mTimestamp << ") BEHIND current frame (" << mDynamicTextureFrame << ")";
+	Unity::DebugLog( Debug );
+
+	if ( DYNAMIC_SKIP_OOO_FRAMES )
+		Copy = false;
+}
+*/
+/*
+BufferString<100> Debug;
+Debug << "Frame " << pFrame->mTimestamp << " Buffer -> Dynamic";
+ofLogNotice( Debug.c_str() );
+*/
 }
 
 
@@ -449,7 +500,7 @@ bool TFastTextureUploadThread::CreateDynamicTexture()
 
 	//	not using dynamic texture
 	//	dont bother with a seperate thread if we don't allow out-of-render-thread operations
-	if ( !Device.IsValid() || !Device.AllowOperationsOutOfRenderThread() )
+	if ( !Device.IsValid() )
 		return false;
 
 
@@ -470,7 +521,7 @@ bool TFastTextureUploadThread::CreateDynamicTexture()
 	bool HadTexure = (mDynamicTexture);
 	if ( !mDynamicTexture )
 	{
-		mDynamicTexture = Device.AllocTexture( TargetTextureMeta );
+		mDynamicTexture = Device.AllocDynamicTexture( TargetTextureMeta );
 		if ( !mDynamicTexture )
 		{
 			BufferString<100> Debug;

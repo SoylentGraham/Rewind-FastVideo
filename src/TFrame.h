@@ -34,6 +34,7 @@ public:
 	{
 	}
 
+	int			GetDataSize() const			{	return mWidth * mHeight * GetChannels();	}
 	bool		IsEqualSize(const TFrameMeta& that) const;
 	int			GetChannels() const			{	return TFrameFormat::GetChannels( mFormat );	}
 	bool		IsValid() const				{	return mWidth>0 && mHeight>0 && mFormat!=TFrameFormat::Invalid;	}

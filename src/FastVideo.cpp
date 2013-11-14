@@ -112,11 +112,17 @@ void TFastVideo::OnPostRender()
 	if ( !mDevice )
 		return;
 
+	//	device callback
+	mDevice->OnRenderThreadBegin();
+	mDevice->OnRenderThreadUpdate();
+	
 	for ( int i=0;	i<mInstances.GetSize();	i++ )
 	{
 		auto& Instance = *mInstances[i];
 		Instance.OnPostRender();
 	}
+
+	mDevice->OnRenderThreadEnd();
 }
 
 bool TFastVideo::AllocDevice(Unity::TGfxDevice::Type DeviceType,void* Device)
@@ -212,10 +218,22 @@ void Unity::DebugLog(const char* str)
 	}
 }
 
-void Unity::DebugLog(const std::string& String)
+void Unity::DebugError(const char* str)
 {
-	DebugLog( String.c_str() );
+	static bool EnableDebugLog = true;
+
+	//	print out to visual studio debugger
+	ofLogError(str);
+
+	//	print to unity if we have a function set
+	if ( Unity::gDebugFunc && EnableDebugLog )
+	{
+		TString Error;
+		Error << "ERROR: " << str;
+		(*Unity::gDebugFunc)( Error.c_str() );
+	}
 }
+
 
 
 extern "C" void EXPORT_API UnitySetGraphicsDevice(void* device, int deviceType, int eventType)
