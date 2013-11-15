@@ -227,6 +227,7 @@ public:
 #endif
 
 
+#if defined(ENABLE_OPENGL)
 class TOpenglBufferCache
 {
 public:
@@ -253,6 +254,8 @@ public:
 	bool		mDeleteRequested;
 	bool		mMapRequested;
 };
+#endif
+
 
 #if defined(ENABLE_OPENGL)
 class Unity::TTexture_Opengl : public Unity::TTexture
