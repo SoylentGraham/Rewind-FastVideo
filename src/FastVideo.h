@@ -36,36 +36,10 @@ static bool	OPENGL_REREADY_MAP			=true;	//	after we copy the dynamic texture, im
 static bool	OPENGL_USE_STREAM_TEXTURE	=true;	//	GL_STREAM_DRAW else GL_DYNAMIC_DRAW
 static bool DEBUG_RENDER_LAG = true;
 
+//#define DEBUG_LOG_THREADSAFE
+//#define SINGLETON_THREADSAFE
+
 class TFastTexture;
-
-
-class TFastVideo
-{
-public:
-	TFastVideo();
-	~TFastVideo();
-
-	SoyRef				AllocInstance();
-	bool				FreeInstance(SoyRef InstanceRef);
-	TFastTexture*		FindInstance(SoyRef InstanceRef);
-
-	void				OnPostRender();
-	
-	bool				AllocDevice(Unity::TGfxDevice::Type DeviceType,void* Device);
-	bool				FreeDevice(Unity::TGfxDevice::Type DeviceType);
-	bool				IsDeviceValid()			{	return mDevice!=nullptr;	}
-	TUnityDevice&       GetDevice()				{	return *mDevice;	}
-
-private:
-	int					FindInstanceIndex(SoyRef InstanceRef);
-
-private:
-	ofMutex						mInstancesLock;
-	SoyRef						mNextInstanceRef;
-	Array<TFastTexture*>		mInstances;
-	ofPtr<TUnityDevice>         mDevice;
-	TFramePool					mFramePool;
-};
 
 
 
@@ -117,6 +91,41 @@ extern "C" void EXPORT_API UnitySetGraphicsDevice(void* device, int deviceType, 
 
 
 
+
+
+class TFastVideo
+{
+public:
+	TFastVideo();
+	~TFastVideo();
+	
+	SoyRef				AllocInstance();
+	bool				FreeInstance(SoyRef InstanceRef);
+	TFastTexture*		FindInstance(SoyRef InstanceRef);
+	
+	void				OnPostRender();
+	
+	bool				AllocDevice(Unity::TGfxDevice::Type DeviceType,void* Device);
+	bool				FreeDevice(Unity::TGfxDevice::Type DeviceType);
+	bool				IsDeviceValid()			{	return mDevice!=nullptr;	}
+	TUnityDevice&       GetDevice()				{	return *mDevice;	}
+	
+private:
+	int					FindInstanceIndex(SoyRef InstanceRef);
+	
+private:
+	ofMutex						mInstancesLock;
+	SoyRef						mNextInstanceRef;
+	Array<TFastTexture*>		mInstances;
+	ofPtr<TUnityDevice>         mDevice;
+	TFramePool					mFramePool;
+	
+public:
+#if defined(DEBUG_LOG_THREADSAFE)
+	ofMutex						mDebugFuncLock;
+#endif
+	Unity::TDebugLogFunc		mDebugFunc;
+};
 
 
 
