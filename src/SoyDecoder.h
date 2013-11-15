@@ -126,8 +126,7 @@ public:
 class TDecoder
 {
 public:
-	TDecoder();
-	virtual ~TDecoder();
+	virtual ~TDecoder()	{}
 
 	virtual bool	Init(const std::wstring& Filename)=0;
 	TVideoMeta		GetVideoMeta()		{	return mVideoMeta;	}
