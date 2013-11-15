@@ -40,6 +40,7 @@ GLint TUnityDevice_Opengl::GetFormat(TFrameFormat::Type Format)
 	{
 		case TFrameFormat::RGBA:	return GL_RGBA;
 		case TFrameFormat::RGB:		return GL_RGB;
+			
 		default:
 			return GL_INVALID_FORMAT;
 	}
@@ -54,6 +55,11 @@ TFrameFormat::Type TUnityDevice_Opengl::GetFormat(GLint Format)
 	{
 		case GL_RGBA:	return TFrameFormat::RGBA;
 		case GL_RGB:	return TFrameFormat::RGB;
+
+		//	gr: osx returns these values hmmmm
+		case GL_RGBA8:	return TFrameFormat::RGBA;
+		case GL_RGB8:	return TFrameFormat::RGB;
+			
 		default:
 			return TFrameFormat::Invalid;
 	};
@@ -536,7 +542,7 @@ TFrameMeta TUnityDevice_Opengl::GetTextureMeta(Unity::TTexture Texture)
 	if ( !TextureGl.Bind(*this) )
 		return TFrameMeta();
 	
-	GLint Width,Height,Formatgl;
+	GLint Width=0,Height=0,Formatgl=GL_INVALID_FORMAT;
 	int Lod = 0;
 	glGetTexLevelParameteriv( GL_TEXTURE_2D, Lod, GL_TEXTURE_WIDTH, &Width );
 	glGetTexLevelParameteriv( GL_TEXTURE_2D, Lod, GL_TEXTURE_HEIGHT, &Height );
