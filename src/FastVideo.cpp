@@ -10,17 +10,21 @@ namespace Unity
 {
 	namespace Private
 	{
+#if defined(SINGLETON_THREADSAFE)
+		ofMutex			gFastVideoLock;
+#endif
 		TFastVideo*		gFastVideo = nullptr;
 	};
 
-	TDebugLogFunc		gDebugFunc = nullptr;
-	
 	TFastVideo&			GetFastVideo();			//	allocate singleton if it hasn't been constructed. This avoids us competeting for crt construction order
 };
 
 
 TFastVideo& Unity::GetFastVideo()
 {
+#if defined(SINGLETON_THREADSAFE)
+	ofMutex::ScopedLock lock( Unity::Private::gFastVideoLock );
+#endif
 	if ( !Private::gFastVideo )
 	{
 		Private::gFastVideo = prcore::Heap.Alloc<TFastVideo>();
@@ -33,6 +37,7 @@ TFastVideo& Unity::GetFastVideo()
 
 
 TFastVideo::TFastVideo() :
+	mDebugFunc			( nullptr ),
 	mFramePool			( DEFAULT_MAX_POOL_SIZE ),
 	mNextInstanceRef	( "FastTxture" )
 {
@@ -197,7 +202,16 @@ extern "C" EXPORT_API bool SetVideo(Unity::ulong Instance,const wchar_t* pFilena
 
 extern "C" void EXPORT_API SetDebugLogFunction(Unity::TDebugLogFunc pFunc)
 {
-	Unity::gDebugFunc = pFunc;
+	auto& FastVideo = Unity::GetFastVideo();
+	
+#if defined(DEBUG_LOG_THREADSAFE)
+	FastVideo.mDebugFuncLock.lock();
+	FastVideo.mDebugFunc = pFunc;
+	FastVideo.mDebugFuncLock.unlock();
+#else
+	FastVideo.mDebugFunc = pFunc;
+#endif
+	
 	Unity::DebugLog("FastVideo debug-log initialised okay");
 }
 
@@ -208,11 +222,15 @@ void Unity::DebugLog(const char* str)
 
 	//	print out to visual studio debugger
 	ofLogNotice(str);
-
+	
 	//	print to unity if we have a function set
-	if ( Unity::gDebugFunc && EnableDebugLog )
+	auto& FastVideo = Unity::GetFastVideo();
+#if defined(DEBUG_LOG_THREADSAFE)
+	ofMutex::ScopedLock lock( FastVideo.mDebugFuncLock );
+#endif
+	if ( FastVideo.mDebugFunc && EnableDebugLog )
 	{
-		(*Unity::gDebugFunc)( str );
+		(*FastVideo.mDebugFunc)( str );
 	}
 }
 
@@ -224,11 +242,15 @@ void Unity::DebugError(const char* str)
 	ofLogError(str);
 
 	//	print to unity if we have a function set
-	if ( Unity::gDebugFunc && EnableDebugLog )
+	auto& FastVideo = Unity::GetFastVideo();
+#if defined(DEBUG_LOG_THREADSAFE)
+	ofMutex::ScopedLock lock( FastVideo.mDebugFuncLock );
+#endif
+	if ( FastVideo.mDebugFunc && EnableDebugLog )
 	{
 		TString Error;
 		Error << "ERROR: " << str;
-		(*Unity::gDebugFunc)( Error.c_str() );
+		(*FastVideo.mDebugFunc)( Error.c_str() );
 	}
 }
 
