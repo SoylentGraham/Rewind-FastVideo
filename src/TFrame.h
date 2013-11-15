@@ -57,7 +57,7 @@ public:
 		mAlpha	( 255 )
 	{
 	}
-	TColour(unsigned char r,unsigned char g,unsigned char b,unsigned char a) :
+	TColour(unsigned char r,unsigned char g,unsigned char b,unsigned char a=255) :
 		mRed	( r ),
 		mGreen	( g ),
 		mBlue	( b ),
