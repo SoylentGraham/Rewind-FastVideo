@@ -3,10 +3,17 @@
 #include <SoyThread.h>
 
 
+#define ENABLE_DECODER_TEST
+
+
 #if defined(TARGET_WINDOWS)
 #define ENABLE_DECODER_LIBAV
-#endif
 //#define ENABLE_DVXA
+#endif
+
+#if defined(TARGET_OSX)
+//#define ENABLE_DECODER_QTKIT
+#endif
 
 
 
@@ -37,6 +44,14 @@ extern "C"
 #pragma comment(lib,"swscale.lib")
 #endif
 
+#if defined(ENABLE_DECODER_QTKIT)
+	#ifdef __OBJC__
+#import <Cocoa/Cocoa.h>
+#import <Quartz/Quartz.h>
+#import <QTKit/QTKit.h>
+#import <OpenGL/OpenGL.h>
+	#endif
+#endif
 
 
 class TFramePool;
@@ -114,21 +129,11 @@ public:
 	TDecoder();
 	virtual ~TDecoder();
 
-	bool			Init(const std::wstring& Filename);
+	virtual bool	Init(const std::wstring& Filename)=0;
 	TVideoMeta		GetVideoMeta()		{	return mVideoMeta;	}
 	TFrameMeta		GetFrameMeta()		{	return GetVideoMeta().mFrameMeta;	}
-	bool			PeekNextFrame(TFrameMeta& FrameMeta);
-	bool			DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
-
-private:
-#if defined(ENABLE_DECODER_LIBAV)
-	bool			DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& Packet,std::shared_ptr<AVFrame>& Frame,int& DataOffset);
-#endif
-
-#if defined(ENABLE_DVXA)
-	bool			InitDxvaContext();
-	void			FreeDxvaContext();
-#endif
+	virtual bool	PeekNextFrame(TFrameMeta& FrameMeta)=0;
+	virtual bool	DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain)=0;
 
 public:
 	TVideoMeta							mVideoMeta;
@@ -136,8 +141,29 @@ public:
 #if defined(USE_REAL_TIMESTAMP)
 	SoyTime								mFakeRunningTimestamp;
 #endif
+};
+
 
 #if defined(ENABLE_DECODER_LIBAV)
+class TDecoder_Libav : public TDecoder
+{
+public:
+	TDecoder_Libav();
+	virtual ~TDecoder_Libav();
+	
+	virtual bool	Init(const std::wstring& Filename);
+	bool			PeekNextFrame(TFrameMeta& FrameMeta);
+	bool			DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
+	
+private:
+	bool			DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& Packet,std::shared_ptr<AVFrame>& Frame,int& DataOffset);
+	
+#if defined(ENABLE_DVXA)
+	bool			InitDxvaContext();
+	void			FreeDxvaContext();
+#endif
+	
+public:
 	std::shared_ptr<AVFormatContext>	mContext;
 	std::shared_ptr<AVCodecContext>		mCodec;
 	std::vector<uint8_t>				mCodecContextExtraData;
@@ -146,11 +172,51 @@ public:
 	AVStream*							mVideoStream;	//	gr: change to index!
 	int									mDataOffset;
 	SwsContext*							mScaleContext;
-#endif
 #if defined(ENABLE_DVXA)
 	dxva_context						mDxvaContext;
 #endif
 };
+#endif
+
+
+#if defined(ENABLE_DECODER_QTKIT)
+class TDecoder_Qtkit : public TDecoder
+{
+public:
+	TDecoder_Qtkit();
+	virtual ~TDecoder_Qtkit();
+	
+	virtual bool	Init(const std::wstring& Filename);
+	bool			PeekNextFrame(TFrameMeta& FrameMeta);
+	bool			DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
+	
+public:
+#ifdef __OBJC__
+	QTKitMovieRenderer * moviePlayer;
+#else
+	void * moviePlayer;
+#endif
+};
+#endif
+
+
+
+
+#if defined(ENABLE_DECODER_TEST)
+class TDecoder_Test : public TDecoder
+{
+public:
+	TDecoder_Test();
+	
+	virtual bool	Init(const std::wstring& Filename);
+	virtual bool	PeekNextFrame(TFrameMeta& FrameMeta);
+	virtual bool	DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
+	
+public:
+	BufferArray<TColour,10>	mColours;
+	int						mCurrentColour;
+};
+#endif
 
 
 class TDecodeThread : public SoyThread
@@ -163,7 +229,7 @@ public:
 	~TDecodeThread();
 
 	bool						Init();				//	do initial load and start thread
-	TFrameMeta					GetVideoFrameMeta()		{	return mDecoder.GetFrameMeta();	}
+	TFrameMeta					GetVideoFrameMeta()		{	return mDecoder ? mDecoder->GetFrameMeta() : TFrameMeta();	}
 	TFrameMeta					GetDecodedFrameMeta();
 	void						SetDecodedFrameMeta(TFrameMeta Format);
 	bool						IsFinishedDecoding()	{	return mFinishedDecoding;	}
@@ -178,7 +244,7 @@ protected:
 	ofMutexT<TFrameMeta>		mDecodeFormat;
 	bool						mFinishedDecoding;
 	TFramePool&					mFramePool;
-	TDecoder					mDecoder;
+	ofPtr<TDecoder>				mDecoder;
 	TFrameBuffer&				mFrameBuffer;
 	TDecodeParams				mParams;
 

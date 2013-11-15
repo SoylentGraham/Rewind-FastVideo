@@ -3,6 +3,53 @@
 
 
 
+
+
+#if defined(ENABLE_DECODER_TEST)
+TDecoder_Test::TDecoder_Test() :
+	mCurrentColour(0)
+{
+	mColours.PushBack( TColour(255,0,0) );
+	mColours.PushBack( TColour(255,255,0) );
+	mColours.PushBack( TColour(255,0,255) );
+
+	mColours.PushBack( TColour(0,255,0) );
+	mColours.PushBack( TColour(0,255,255) );
+
+	mColours.PushBack( TColour(0,0,255) );
+}
+#endif
+
+
+#if defined(ENABLE_DECODER_TEST)
+bool TDecoder_Test::Init(const std::wstring& Filename)
+{
+	return true;
+}
+#endif
+
+
+#if defined(ENABLE_DECODER_TEST)
+bool TDecoder_Test::PeekNextFrame(TFrameMeta& FrameMeta)
+{
+	FrameMeta = TFrameMeta( 4096, 2048, TFrameFormat::RGB );
+	return true;
+}
+#endif
+
+
+#if defined(ENABLE_DECODER_TEST)
+bool TDecoder_Test::DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain)
+{
+	OutFrame.SetColour( mColours[mCurrentColour%mColours.GetSize()] );
+	mCurrentColour++;
+	return true;
+}
+#endif
+
+
+
+
 	
 class TSortPolicy_TFramePixelsByTimestamp
 {
@@ -138,8 +185,27 @@ bool TDecodeThread::Init()
 {
 	Unity::DebugLog( __FUNCTION__ );
 
+	//	alloc decoder
+#if defined(ENABLE_DECODER_LIBAV)
+	if ( !mDecoder )
+		mDecoder = ofPtr<TDecoder>( new TDecoder_Libav() );
+#endif
+	
+#if defined(ENABLE_DECODER_QTKIT)
+	if ( !mDecoder )
+		mDecoder = ofPtr<TDecoder>( new TDecoder_Qtkit() );
+#endif
+	
+#if defined(ENABLE_DECODER_TEST)
+	if ( !mDecoder )
+		mDecoder = ofPtr<TDecoder>( new TDecoder_Test() );
+#endif
+	
+	if ( !mDecoder )
+		return false;
+		
 	//	init decoder
-	if ( !mDecoder.Init(mParams.mFilename.c_str()) )
+	if ( !mDecoder->Init(mParams.mFilename.c_str()) )
 		return false;
 
 	Unity::DebugLog("TDecodeThread - starting thread");
@@ -305,6 +371,9 @@ void TDecodeThread::SetMinTimestamp(SoyTime Timestamp)
 
 bool TDecodeThread::DecodeNextFrame()
 {
+	if ( !mDecoder )
+		return false;
+
 	ofScopeTimerWarning Timer( "thread DecodeNextFrame", 1 );
 
 	//	alloc a frame
@@ -320,7 +389,7 @@ bool TDecodeThread::DecodeNextFrame()
 		SoyTime MinTimestamp = GetMinTimestamp();
 
 		//	success!
-		if ( mDecoder.DecodeNextFrame( *Frame, MinTimestamp, TryAgain ) )
+		if ( mDecoder->DecodeNextFrame( *Frame, MinTimestamp, TryAgain ) )
 			break;
 		
 		//	failed, and failed hard
