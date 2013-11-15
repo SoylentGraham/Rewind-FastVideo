@@ -412,32 +412,31 @@ bool TDecodeThread::DecodeNextFrame()
 }
 
 
-TDecoder::TDecoder()
 #if defined(ENABLE_DECODER_LIBAV)
-	:
+TDecoder_Libav::TDecoder_Libav() :
 	mScaleContext	( nullptr ),
 	mVideoStream	( nullptr ),
 	mDataOffset		( 0 )
-#endif
 {
 	//	initialise dxvacontext
 #if defined(ENABLE_DVXA)
 	ZeroMemory( &mDxvaContext, sizeof(mDxvaContext) );
 #endif
 }
+#endif
 
 
-TDecoder::~TDecoder()
-{
 #if defined(ENABLE_DECODER_LIBAV)
+TDecoder_Libav::~TDecoder_Libav()
+{
 	sws_freeContext( mScaleContext );
 	mScaleContext = nullptr;
-#endif
 
 #if defined(ENABLE_DVXA)
 	FreeDxvaContext();
 #endif
 }
+#endif
 
 #if defined(ENABLE_DVXA)
 bool TDecoder::InitDxvaContext()
@@ -474,7 +473,7 @@ void TDecoder::FreeDxvaContext()
 
 
 #if defined(ENABLE_DECODER_LIBAV)
-bool TDecoder::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacket,std::shared_ptr<AVFrame>& Frame,int& DataOffset)
+bool TDecoder_Libav::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacket,std::shared_ptr<AVFrame>& Frame,int& DataOffset)
 {
 	ofScopeTimerWarning Timer( __FUNCTION__, 1 );
 
@@ -531,9 +530,9 @@ bool TDecoder::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacket,std:
 }
 #endif
 
-bool TDecoder::PeekNextFrame(TFrameMeta& FrameMeta)
-{
 #if defined(ENABLE_DECODER_LIBAV)
+bool TDecoder_Libav::PeekNextFrame(TFrameMeta& FrameMeta)
+{
 	//	not setup right??
 	if ( !mVideoStream )
 		return false;
@@ -546,17 +545,15 @@ bool TDecoder::PeekNextFrame(TFrameMeta& FrameMeta)
 		return false;
 
 	return true;
-#else
-	return false;
-#endif
 }
+#endif
 
 
-bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimestamp,bool& TryAgain)
+#if defined(ENABLE_DECODER_LIBAV)
+bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimestamp,bool& TryAgain)
 {
 	TryAgain = false;
 
-#if defined(ENABLE_DECODER_LIBAV)
 	ofScopeTimerWarning Timer( "DecodeNextFrame TOTAL", 1 );
 
 	TFrameMeta FrameMeta;
@@ -635,18 +632,16 @@ bool TDecoder::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimestamp,bo
 	sws_scale_Timer.Stop();
 	
 	return true;
-#else
-	return false;
-#endif
 }
+#endif
 
 
 
-bool TDecoder::Init(const std::wstring& Filename)
+#if defined(ENABLE_DECODER_LIBAV)
+bool TDecoder_Libav::Init(const std::wstring& Filename)
 {
 	ofScopeTimerWarning Timer(__FUNCTION__,2);
 
-#if defined(ENABLE_DECODER_LIBAV)
 	std::string Filenamea( Filename.begin(), Filename.end() );
 
 	//	check file exists
@@ -775,8 +770,5 @@ bool TDecoder::Init(const std::wstring& Filename)
 		return false;
 
 	return true;
-
-#endif
-	
-	return false;
 }
+#endif

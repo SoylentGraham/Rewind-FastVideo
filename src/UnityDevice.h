@@ -16,7 +16,8 @@
 #endif
 
 #if defined(ENABLE_OPENGL)
-#define GLEW_STATIC
+
+//#define GLEW_STATIC	//	need to add to pre-processor if we need this
 	#if defined(TARGET_WINDOWS)
 		#include <gl/glew.h>
 //		#include <gl/GL.h>	//	included by glew
