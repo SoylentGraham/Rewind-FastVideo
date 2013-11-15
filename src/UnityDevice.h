@@ -19,12 +19,13 @@
 #define GLEW_STATIC
 	#if defined(TARGET_WINDOWS)
 		#include <gl/glew.h>
-//		#include <gl/GL.h>
+//		#include <gl/GL.h>	//	included by glew
+		#pragma comment(lib,"opengl32.lib")
 	#else
+		#include <gl/glew.h>
 		#include <Opengl/gl.h>
 		#include <OpenGL/OpenGL.h>
 	#endif
-	#pragma comment(lib,"opengl32.lib")
 
 #define GL_INVALID_FORMAT		0
 #define GL_INVALID_TEXTURE_NAME	0u
