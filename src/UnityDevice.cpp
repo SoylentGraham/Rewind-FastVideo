@@ -871,3 +871,16 @@ void TUnityDevice_Opengl::OnRenderThreadUpdate()
 	}
 }
 #endif
+
+
+#if defined(ENABLE_OPENGL)
+void TUnityDevice_Opengl::OnRenderThreadPostUpdate()
+{
+	TUnityDevice::OnRenderThreadPostUpdate();
+	
+#if defined(DO_GL_FLUSH)
+	DO_GL_FLUSH();
+#endif
+}
+#endif
+

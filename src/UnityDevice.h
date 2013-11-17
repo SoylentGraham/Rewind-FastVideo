@@ -304,7 +304,11 @@ public:
 	bool					IsRenderThreadActive() const			{	return SoyThread::GetCurrentThreadId() == mRenderThreadId;	}
 	void					SetRenderThread()						{	mRenderThreadId = SoyThread::GetCurrentThreadId();	}
 	//	callback during render thread in case we can only do certain operations in render thread
-	virtual void			OnRenderThreadUpdate()					
+	virtual void			OnRenderThreadUpdate()
+	{
+		assert( IsRenderThreadActive() );
+	}
+	virtual void			OnRenderThreadPostUpdate()
 	{
 		assert( IsRenderThreadActive() );
 	}
@@ -422,6 +426,7 @@ public:
     
 	virtual bool			AllowOperationsOutOfRenderThread() const		{	return false;	}
 	virtual void			OnRenderThreadUpdate();
+	virtual void			OnRenderThreadPostUpdate();
 	virtual bool            IsValid()	{	return true;	}
     virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta);
     virtual Unity::TDynamicTexture	AllocDynamicTexture(TFrameMeta FrameMeta);

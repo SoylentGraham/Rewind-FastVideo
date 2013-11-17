@@ -36,8 +36,11 @@ static bool	OPENGL_REREADY_MAP			=true;	//	after we copy the dynamic texture, im
 static bool	OPENGL_USE_STREAM_TEXTURE	=true;	//	GL_STREAM_DRAW else GL_DYNAMIC_DRAW
 static bool DEBUG_RENDER_LAG = true;
 
+#define ENABLE_DEBUG_LOG
+#define BUFFER_DEBUG_LOG
 //#define DEBUG_LOG_THREADSAFE
 //#define SINGLETON_THREADSAFE
+//#define DO_GL_FLUSH						glFlush
 
 class TFastTexture;
 
@@ -110,6 +113,12 @@ public:
 	bool				IsDeviceValid()			{	return mDevice!=nullptr;	}
 	TUnityDevice&       GetDevice()				{	return *mDevice;	}
 	
+#if defined(BUFFER_DEBUG_LOG)
+	void				FlushDebugLogBuffer();
+	void				DebugLog(const char* String);
+	void				BufferDebugLog(const char* String,const char* Prefix=nullptr);
+#endif
+	
 private:
 	int					FindInstanceIndex(SoyRef InstanceRef);
 	
@@ -125,6 +134,10 @@ public:
 	ofMutex						mDebugFuncLock;
 #endif
 	Unity::TDebugLogFunc		mDebugFunc;
+#if defined(BUFFER_DEBUG_LOG)
+	ofMutex						mDebugLogBufferLock;
+	Array<BufferString<200>>	mDebugLogBuffer;
+#endif
 };
 
 
