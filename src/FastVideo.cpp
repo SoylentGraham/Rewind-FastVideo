@@ -126,6 +126,13 @@ void TFastVideo::OnPostRender()
 		auto& Instance = *mInstances[i];
 		Instance.OnPostRender();
 	}
+
+	mDevice->OnRenderThreadPostUpdate();
+
+	//	flush debug log
+#if defined(BUFFER_DEBUG_LOG)
+	FlushDebugLogBuffer();
+#endif
 }
 
 bool TFastVideo::AllocDevice(Unity::TGfxDevice::Type DeviceType,void* Device)
@@ -218,41 +225,75 @@ extern "C" void EXPORT_API SetDebugLogFunction(Unity::TDebugLogFunc pFunc)
 // Prints a string
 void Unity::DebugLog(const char* str)
 {
-	static bool EnableDebugLog = true;
-
 	//	print out to visual studio debugger
 	ofLogNotice(str);
 	
 	//	print to unity if we have a function set
 	auto& FastVideo = Unity::GetFastVideo();
-#if defined(DEBUG_LOG_THREADSAFE)
-	ofMutex::ScopedLock lock( FastVideo.mDebugFuncLock );
+	
+#if defined(BUFFER_DEBUG_LOG)
+	FastVideo.BufferDebugLog( str );
+#else
+	FastVideo.DebugLog( str );
 #endif
-	if ( FastVideo.mDebugFunc && EnableDebugLog )
-	{
-		(*FastVideo.mDebugFunc)( str );
-	}
 }
 
 void Unity::DebugError(const char* str)
 {
-	static bool EnableDebugLog = true;
-
 	//	print out to visual studio debugger
 	ofLogError(str);
-
-	//	print to unity if we have a function set
+	
 	auto& FastVideo = Unity::GetFastVideo();
-#if defined(DEBUG_LOG_THREADSAFE)
-	ofMutex::ScopedLock lock( FastVideo.mDebugFuncLock );
+	
+#if defined(BUFFER_DEBUG_LOG)
+	FastVideo.BufferDebugLog( str, "Error" );
+#else
+	FastVideo.DebugLog( str );
 #endif
-	if ( FastVideo.mDebugFunc && EnableDebugLog )
-	{
-		TString Error;
-		Error << "ERROR: " << str;
-		(*FastVideo.mDebugFunc)( Error.c_str() );
-	}
 }
+
+
+void TFastVideo::BufferDebugLog(const char* String,const char* Prefix)
+{
+	ofMutex::ScopedLock lock( mDebugLogBufferLock );
+	
+	auto& str = mDebugLogBuffer.PushBack();
+	if ( Prefix )
+		str << "[" << Prefix << "] ";
+	str << String;
+}
+
+
+void TFastVideo::FlushDebugLogBuffer()
+{
+	ofMutex::ScopedLock lock( mDebugLogBufferLock );
+	
+	for ( int i=0;	i<mDebugLogBuffer.GetSize();	i++ )
+	{
+		auto& Debug = mDebugLogBuffer[i];
+		DebugLog( Debug.c_str() );
+	}
+	mDebugLogBuffer.Clear();
+}
+
+
+
+void TFastVideo::DebugLog(const char* String)
+{
+#if defined(ENABLE_DEBUG_LOG)
+
+#if defined(DEBUG_LOG_THREADSAFE)
+	ofMutex::ScopedLock lock( mDebugFuncLock );
+#endif
+
+	if ( mDebugFunc )
+	{
+		(*mDebugFunc)( String );
+	}
+
+#endif
+}
+
 
 
 
@@ -293,7 +334,6 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID)
 			Unity::DebugLog( BufferString<100>() << "Unknown UnityRenderEvent [" << eventID << "]" );
 			break;
 	}
-
 }
 
 extern "C" EXPORT_API bool Pause(Unity::ulong Instance)
