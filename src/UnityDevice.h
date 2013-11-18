@@ -5,7 +5,7 @@
 
 
 #if defined(TARGET_WINDOWS)
-	//#define ENABLE_DX11
+	#define ENABLE_DX11
 	#define ENABLE_OPENGL
 #elif defined(TARGET_OSX)
 	#define ENABLE_OPENGL
@@ -17,8 +17,8 @@
 
 #if defined(ENABLE_OPENGL)
 
-//#define GLEW_STATIC	//	need to add to pre-processor if we need this
 	#if defined(TARGET_WINDOWS)
+#define GLEW_STATIC	//	need to add to pre-processor if we need this
 		#include <gl/glew.h>
 //		#include <gl/GL.h>	//	included by glew
 		#pragma comment(lib,"opengl32.lib")
@@ -227,6 +227,19 @@ public:
 };
 #endif
 
+#if defined(ENABLE_DX11)
+class Unity::TDynamicTexture_Dx11 : public Unity::TDynamicTexture
+{
+public:
+    TDynamicTexture_Dx11(ID3D11Texture2D* Texture=nullptr) :
+        TDynamicTexture    ( Texture )
+    {
+    }
+    
+    ID3D11Texture2D*    GetTexture()    {   return reinterpret_cast<ID3D11Texture2D*>( GetPointer() );   }
+};
+#endif
+
 
 #if defined(ENABLE_OPENGL)
 class TOpenglBufferCache
@@ -375,6 +388,7 @@ public:
     virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta);
     virtual Unity::TDynamicTexture	AllocDynamicTexture(TFrameMeta FrameMeta);
     virtual bool            DeleteTexture(Unity::TTexture& Texture);
+    virtual bool            DeleteTexture(Unity::TDynamicTexture& Texture);
 	virtual TFrameMeta      GetTextureMeta(Unity::TTexture Texture);
 	virtual TFrameMeta      GetTextureMeta(Unity::TDynamicTexture Texture);
 	virtual bool            CopyTexture(Unity::TTexture Texture,const TFramePixels& Frame,bool Blocking);
