@@ -47,6 +47,8 @@ public:
 	int					mHeight;
 	TFrameFormat::Type	mFormat;
 };
+DECLARE_NONCOMPLEX_TYPE(TFrameMeta);
+
 
 class TColour
 {
@@ -74,6 +76,7 @@ public:
 	unsigned char	mBlue;
 	unsigned char	mAlpha;
 };
+DECLARE_NONCOMPLEX_NO_CONSTRUCT_TYPE(TColour);
 
 
 class TFramePixels
