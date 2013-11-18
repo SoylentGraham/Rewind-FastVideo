@@ -104,10 +104,18 @@ TUnityDevice_Dx11::TUnityDevice_Dx11(ID3D11Device* Device) :
 #if defined(ENABLE_DX11)
 Unity::TTexture TUnityDevice_Dx11::AllocTexture(TFrameMeta FrameMeta)
 {
+	auto Texture = AllocDynamicTexture( FrameMeta );
+	return Unity::TTexture( Texture.GetPointer() );
+}
+#endif
+
+#if defined(ENABLE_DX11)
+Unity::TDynamicTexture TUnityDevice_Dx11::AllocDynamicTexture(TFrameMeta FrameMeta)
+{
 	if ( !FrameMeta.IsValid() )
-		return Unity::TTexture();
+		return Unity::TDynamicTexture();
 	if ( !mDevice )
-		return Unity::TTexture();
+		return Unity::TDynamicTexture();
 
 	D3D11_TEXTURE2D_DESC Desc;
 	memset(&Desc, 0, sizeof(Desc));
@@ -128,7 +136,7 @@ Unity::TTexture TUnityDevice_Dx11::AllocTexture(TFrameMeta FrameMeta)
 	ID3D11Texture2D* pTexture = NULL;
 	TUnityDeviceContextScope Context( *this );
 	if ( !Context )
-		return Unity::TTexture();
+		return Unity::TDynamicTexture();
 
 	auto Result = mDevice->CreateTexture2D( &Desc, NULL, &pTexture );
 	if ( Result != S_OK )
@@ -139,7 +147,7 @@ Unity::TTexture TUnityDevice_Dx11::AllocTexture(TFrameMeta FrameMeta)
 	//	gr: need to manage textures on device
 	//TAutoRelease<ID3D11Texture2D> Texture( pTexture, true );
 	pTexture->AddRef();
-	return Unity::TTexture( pTexture );
+	return Unity::TDynamicTexture( pTexture );
 }
 #endif
 
@@ -164,6 +172,25 @@ bool TUnityDevice_Dx11::DeleteTexture(Unity::TTexture& Texture)
 #endif
 
 #if defined(ENABLE_DX11)
+bool TUnityDevice_Dx11::DeleteTexture(Unity::TDynamicTexture& Texture)
+{
+	//	gr: need to manage textures on device
+	auto* TextureDx = static_cast<Unity::TDynamicTexture_Dx11&>( Texture).GetTexture();
+	if ( !TextureDx )
+		return false;
+
+	ID3D11Texture2D* pTexture = NULL;
+	TUnityDeviceContextScope Context( *this );
+	if ( !Context )
+		return Unity::TTexture();
+
+	TextureDx->Release();
+	Texture = Unity::TDynamicTexture();
+	return true;
+}
+#endif
+
+#if defined(ENABLE_DX11)
 TFrameMeta TUnityDevice_Dx11::GetTextureMeta(Unity::TTexture Texture)
 {
 	auto* TextureDx = static_cast<Unity::TTexture_Dx11&>( Texture).GetTexture();
@@ -173,7 +200,7 @@ TFrameMeta TUnityDevice_Dx11::GetTextureMeta(Unity::TTexture Texture)
 	ID3D11Texture2D* pTexture = NULL;
 	TUnityDeviceContextScope Context( *this );
 	if ( !Context )
-		return Unity::TTexture();
+		return TFrameMeta();
 
 	D3D11_TEXTURE2D_DESC Desc;
 	TextureDx->GetDesc( &Desc );
@@ -184,6 +211,13 @@ TFrameMeta TUnityDevice_Dx11::GetTextureMeta(Unity::TTexture Texture)
 }
 #endif
 
+#if defined(ENABLE_DX11)
+TFrameMeta TUnityDevice_Dx11::GetTextureMeta(Unity::TDynamicTexture Texture)
+{
+	auto TextureNonDynamic = reinterpret_cast<Unity::TTexture&>( Texture );
+	return GetTextureMeta( TextureNonDynamic );
+}
+#endif
 
 
 BufferString<100> Unity::TGfxDevice::ToString(Unity::TGfxDevice::Type DeviceType)
@@ -273,12 +307,19 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture TextureU,const TFramePixels&
 }
 #endif
 
+#if defined(ENABLE_DX11)
+bool TUnityDevice_Dx11::CopyTexture(Unity::TDynamicTexture TextureU,const TFramePixels& Frame,bool Blocking)
+{
+	auto TextureNonDynamic = reinterpret_cast<Unity::TTexture&>( TextureU );
+	return CopyTexture( TextureNonDynamic, Frame, Blocking );
+}
+#endif
 
 #if defined(ENABLE_DX11)
-bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture DstTextureU,Unity::TTexture SrcTextureU)
+bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture DstTextureU,Unity::TDynamicTexture SrcTextureU)
 {
 	auto* DstTexture = static_cast<Unity::TTexture_Dx11&>( DstTextureU ).GetTexture();
-	auto* SrcTexture = static_cast<Unity::TTexture_Dx11&>( SrcTextureU ).GetTexture();
+	auto* SrcTexture = static_cast<Unity::TDynamicTexture_Dx11&>( SrcTextureU ).GetTexture();
 	if ( !DstTexture || !SrcTexture )
 		return false;
 
