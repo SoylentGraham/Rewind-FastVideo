@@ -256,12 +256,13 @@ public:
 
 	bool		IsAllocated() const						{	return mBufferName != GL_INVALID_BUFFER_NAME;	}
 	bool		IsMapped() const						{	return mDataMap != nullptr;	}
+	int			GetSize() const							{	return mBufferMeta.GetDataSize();	}
 	inline bool	operator==(const uint32 UnityRef) const	{	return mUnityRef == UnityRef;	}
 
 public:
 	uint32		mUnityRef;			//	so that we can allocate a texture out of the render thread, we map to our own ID, not the opengl name
 	GLuint		mBufferName;		//	thread safe as only allocated/destroyed during render thread
-	TFrameMeta	mBufferMeta;
+	TFrameMeta	mBufferMeta;		//	data allocated (inc size)
 
 	//	these might need a mutex
 	void*		mDataMap;

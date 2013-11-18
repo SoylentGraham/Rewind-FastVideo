@@ -8,6 +8,7 @@ int TFrameFormat::GetChannels(TFrameFormat::Type Format)
 	{
 	case TFrameFormat::RGB:		return 3;
 	case TFrameFormat::RGBA:	return 4;
+	case TFrameFormat::BGRA:	return 4;
 	case TFrameFormat::YUV:		return 3;
 	case TFrameFormat::Invalid:
 	default:
@@ -21,6 +22,7 @@ const char* TFrameFormat::ToString(TFrameFormat::Type Format)
 	{
 	case TFrameFormat::RGB:		return "RGB";
 	case TFrameFormat::RGBA:	return "RGBA";
+	case TFrameFormat::BGRA:	return "BGRA";
 	case TFrameFormat::YUV:		return "YUV";
 	case TFrameFormat::Invalid:
 	default:
@@ -86,7 +88,7 @@ void TFramePool::PreAlloc(TFrameMeta FrameMeta)
 	if ( !FrameMeta.IsValid() )
 		return;
 
-	ofScopeTimerWarning Timer(__FUNCTION__,2);
+	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock lock( mPoolLock );
 
 	//	already allocated some
@@ -116,7 +118,7 @@ TFramePixels* TFramePool::Alloc(TFrameMeta FrameMeta,const char* Owner)
 
 	PreAlloc( FrameMeta );
 
-	ofScopeTimerWarning Timer(__FUNCTION__,2);
+	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock lock( mPoolLock );
 
 	//	any free?
@@ -162,7 +164,7 @@ bool TFramePool::Free(TFramePixels* pFrame)
 	if ( !pFrame )
 		return false;
 
-	ofScopeTimerWarning Timer(__FUNCTION__,2);
+	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock lock( mPoolLock );
 
 	//	find in used pool
