@@ -253,6 +253,7 @@ void Unity::DebugError(const char* str)
 }
 
 
+#if defined(BUFFER_DEBUG_LOG)
 void TFastVideo::BufferDebugLog(const char* String,const char* Prefix)
 {
 	ofMutex::ScopedLock lock( mDebugLogBufferLock );
@@ -262,8 +263,10 @@ void TFastVideo::BufferDebugLog(const char* String,const char* Prefix)
 		str << "[" << Prefix << "] ";
 	str << String;
 }
+#endif
 
 
+#if defined(BUFFER_DEBUG_LOG)
 void TFastVideo::FlushDebugLogBuffer()
 {
 	ofMutex::ScopedLock lock( mDebugLogBufferLock );
@@ -275,7 +278,7 @@ void TFastVideo::FlushDebugLogBuffer()
 	}
 	mDebugLogBuffer.Clear();
 }
-
+#endif
 
 
 void TFastVideo::DebugLog(const char* String)
