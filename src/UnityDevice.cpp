@@ -40,6 +40,7 @@ GLint TUnityDevice_Opengl::GetFormat(TFrameFormat::Type Format)
 	{
 		case TFrameFormat::RGBA:	return GL_RGBA;
 		case TFrameFormat::RGB:		return GL_RGB;
+		case TFrameFormat::BGRA:	return GL_BGRA;
 			
 		default:
 			return GL_INVALID_FORMAT;
@@ -55,6 +56,7 @@ TFrameFormat::Type TUnityDevice_Opengl::GetFormat(GLint Format)
 	{
 		case GL_RGBA:	return TFrameFormat::RGBA;
 		case GL_RGB:	return TFrameFormat::RGB;
+		case GL_BGRA:	return TFrameFormat::BGRA;
 
 		//	gr: osx returns these values hmmmm
 		case GL_RGBA8:	return TFrameFormat::RGBA;
@@ -266,7 +268,7 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture TextureU,const TFramePixels&
 
 	//	update our dynamic texture
 	{
-		ofScopeTimerWarning MapTimer("DX::Map copy",2);
+		Unity::TScopeTimerWarning MapTimer("DX::Map copy",2);
 	
 		D3D11_TEXTURE2D_DESC SrcDesc;
 		Texture->GetDesc(&SrcDesc);
@@ -341,7 +343,7 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture DstTextureU,Unity::TDynamicT
 	//	copy to real texture (gpu->gpu)
 	//	gr: this will fail silently if dimensions/format different
 	{
-		//ofScopeTimerWarning MapTimer("DX::copy resource",2);
+		//Unity::TScopeTimerWarning MapTimer("DX::copy resource",2);
 		ctx->CopyResource( DstTexture, SrcTexture );
 	}
 
@@ -621,7 +623,7 @@ bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture Texture,const TFramePixels
 	glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, Frame.GetWidth(), Frame.GetHeight(), Format, GL_UNSIGNED_BYTE, Frame.GetData() );
 	if ( HasError() )
 		return false;
-
+	
 	return true;
 }
 #endif
@@ -630,7 +632,7 @@ bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture Texture,const TFramePixels
 #if defined(ENABLE_OPENGL)
 bool TUnityDevice_Opengl::AllocMap(TOpenglBufferCache& Buffer)
 {
-	ofScopeTimerWarning timer_glTexSubImage2D(__FUNCTION__,1);
+	Unity::TScopeTimerWarning timer_glTexSubImage2D(__FUNCTION__,1);
 
 	//	already mapped
 	if ( Buffer.mDataMap )
@@ -647,7 +649,21 @@ bool TUnityDevice_Opengl::AllocMap(TOpenglBufferCache& Buffer)
 	if ( !Bind( Buffer ) )
 		return false;
 
-	Buffer.mDataMap = glMapBuffer( GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY );
+	
+	if ( glewIsSupported("GL_ARB_map_buffer_range") )
+	{
+		int Flags = GL_MAP_WRITE_BIT;
+		Buffer.mDataMap = glMapBufferRange( GL_PIXEL_UNPACK_BUFFER,
+										   0,
+										   Buffer.GetSize(),
+										   Flags
+										   );
+	}
+	else
+	{
+		Buffer.mDataMap = glMapBuffer( GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY );
+	}
+	
 	if ( !Buffer.mDataMap )
 		return false;
 
@@ -662,7 +678,7 @@ bool TUnityDevice_Opengl::AllocMap(TOpenglBufferCache& Buffer)
 #if defined(ENABLE_OPENGL)
 bool TUnityDevice_Opengl::FreeMap(TOpenglBufferCache& Buffer)
 {
-	ofScopeTimerWarning timer_glTexSubImage2D(__FUNCTION__,1);
+	Unity::TScopeTimerWarning timer_glTexSubImage2D(__FUNCTION__,1);
 
 	//	not mapped
 	if ( !Buffer.mDataMap )
@@ -697,6 +713,8 @@ bool TUnityDevice_Opengl::FreeMap(TOpenglBufferCache& Buffer)
 #endif
 
 
+
+
 #if defined(ENABLE_OPENGL)
 bool TUnityDevice_Opengl::CopyTexture(Unity::TDynamicTexture Texture,const TFramePixels& Frame,bool Blocking)
 {
@@ -728,7 +746,7 @@ bool TUnityDevice_Opengl::CopyTexture(Unity::TDynamicTexture Texture,const TFram
 #if defined(ENABLE_OPENGL)
 bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture DstTextureU,Unity::TDynamicTexture SrcTextureU)
 {
-	ofScopeTimerWarning Timer(__FUNCTION__,1);
+	Unity::TScopeTimerWarning Timer(__FUNCTION__,1);
 	TUnityDeviceContextScope Context( *this );
 	if ( !Context )
 		return false;
@@ -749,12 +767,11 @@ bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture DstTextureU,Unity::TDynami
 	if ( !DstTexture.Bind(*this) )
 		return false;
 	
-
 //	TFrameMeta TextureMeta = GetTextureMeta( DstTextureU );
 	TFrameMeta TextureMeta = Buffer->mBufferMeta;
 	auto Format = GetFormat( TextureMeta.mFormat );
 	{
-		ofScopeTimerWarning timer_glTexSubImage2D("glTexSubImage2D",1);
+		Unity::TScopeTimerWarning timer_glTexSubImage2D("glTexSubImage2D",1);
 		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, TextureMeta.mWidth, TextureMeta.mHeight, Format, GL_UNSIGNED_BYTE, nullptr );
 		if ( HasError() )
 			return false;

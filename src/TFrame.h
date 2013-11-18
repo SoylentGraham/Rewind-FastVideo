@@ -10,6 +10,7 @@ namespace TFrameFormat
 		Invalid,
 		RGB,
 		RGBA,
+		BGRA,
 		YUV,	//	4:2:2
 	};
 
@@ -78,7 +79,8 @@ public:
 class TFramePixels
 {
 public:
-	TFramePixels(TFrameMeta Meta,const char* Owner=nullptr);
+	TFramePixels(TFrameMeta Meta=TFrameMeta(),const char* Owner=nullptr);
+	explicit TFramePixels(const TFramePixels& Other);
 
 	void					SetColour(const TColour& Colour);
 	unsigned char*			GetData()			{	return mPixels.GetArray();	}
