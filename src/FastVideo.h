@@ -72,6 +72,7 @@ extern "C" EXPORT_API bool			SetTexture(Unity::ulong Instance,void* Texture);
 extern "C" EXPORT_API bool			SetVideo(Unity::ulong Instance,const wchar_t* Filename,int Length);
 extern "C" EXPORT_API bool			Pause(Unity::ulong Instance);
 extern "C" EXPORT_API bool			Resume(Unity::ulong Instance);
+extern "C" EXPORT_API bool			SetLooping(Unity::ulong Instance,bool EnableLooping);
 
 //	http://www.gamedev.net/page/resources/_/technical/game-programming/c-plugin-debug-log-with-unity-r3349
 //	gr: call this in unity to tell us where to DebugLog() to
