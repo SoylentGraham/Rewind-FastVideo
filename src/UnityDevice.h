@@ -442,7 +442,7 @@ public:
 	virtual bool			AllowOperationsOutOfRenderThread() const		{	return false;	}
 	virtual void			OnRenderThreadUpdate();
 	virtual void			OnRenderThreadPostUpdate();
-	virtual bool            IsValid()	{	return true;	}
+	virtual bool            IsValid()	{	return !mFirstRun;	}		//	only valid once we've done first loop
     virtual Unity::TTexture AllocTexture(TFrameMeta FrameMeta);
     virtual Unity::TDynamicTexture	AllocDynamicTexture(TFrameMeta FrameMeta);
     virtual bool            DeleteTexture(Unity::TTexture& Texture);

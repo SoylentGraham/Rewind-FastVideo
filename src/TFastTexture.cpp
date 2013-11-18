@@ -1,9 +1,5 @@
 #include "TFastTexture.h"
-
-#if defined(ENABLE_DX11)
-#include <d3d11.h>
-#endif
-
+#include "UnityDevice.h"
 
 
 
@@ -102,7 +98,6 @@ bool TFastTexture::CreateUploadThread(bool IsRenderThread)
 	if ( mUploadThread )
 		return true;
 
-	//	dont bother with a seperate thread if we don't allow out-of-render-thread operations
     auto& Device = GetDevice();
 	if ( !Device.IsValid() )
 		return false;
@@ -110,6 +105,15 @@ bool TFastTexture::CreateUploadThread(bool IsRenderThread)
 	//	need a target texture first
 	if ( !mTargetTexture )
 		return false;
+
+	//	don't need it if we have super-fast opengl copying
+	//	gr: check type on device!?
+#if defined(TARGET_OSX) && defined(ENABLE_OPENGL)
+	if ( USE_APPLE_CLIENT_STORAGE && glewIsSupported("GL_APPLE_client_storage") )
+	{
+		return false;
+	}
+#endif
 
 	mUploadThread = ofPtr<TFastTextureUploadThread>( new TFastTextureUploadThread( *this, Device ) );
 	//	something messed up at init

@@ -619,10 +619,34 @@ bool TUnityDevice_Opengl::CopyTexture(Unity::TTexture Texture,const TFramePixels
 	if ( !TextureGl.Bind(*this) )
 		return false;
 
-	GLint Format = GetFormat( Frame.mMeta.mFormat );
-	glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, Frame.GetWidth(), Frame.GetHeight(), Format, GL_UNSIGNED_BYTE, Frame.GetData() );
-	if ( HasError() )
-		return false;
+	if ( glewIsSupported("GL_APPLE_client_storage") )
+	{
+		//	https://developer.apple.com/library/mac/documentation/graphicsimaging/conceptual/opengl-macprogguide/opengl_texturedata/opengl_texturedata.html
+		glTexParameteri(GL_TEXTURE_2D,
+						GL_TEXTURE_STORAGE_HINT_APPLE,
+						GL_STORAGE_CACHED_APPLE);
+		
+		glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_TRUE);
+		
+		static TFramePixels PixelsBuffer;//( TFrameMeta() );
+		PixelsBuffer = Frame;
+		
+		int Lod = 0;
+		GLint Format = GetFormat( Frame.mMeta.mFormat );
+		GLint InternalFormat = GL_BGRA;
+		GLenum InternalStorage = GL_UNSIGNED_INT_8_8_8_8_REV;
+		glTexImage2D(GL_TEXTURE_2D, Lod, Format, PixelsBuffer.GetWidth(), PixelsBuffer.GetHeight(), 0, InternalFormat, InternalStorage, PixelsBuffer.GetData() );
+		
+		if ( HasError() )
+			return false;
+	}
+	else
+	{
+		GLint Format = GetFormat( Frame.mMeta.mFormat );
+		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, Frame.GetWidth(), Frame.GetHeight(), Format, GL_UNSIGNED_BYTE, Frame.GetData() );
+		if ( HasError() )
+			return false;
+	}
 	
 	return true;
 }
