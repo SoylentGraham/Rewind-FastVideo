@@ -355,3 +355,13 @@ extern "C" EXPORT_API bool Resume(Unity::ulong Instance)
 	pInstance->SetState( TFastVideoState::Playing );
 	return true;
 }
+
+extern "C" EXPORT_API bool SetLooping(Unity::ulong Instance,bool EnableLooping)
+{
+	auto* pInstance = Unity::GetFastVideo().FindInstance( SoyRef(Instance) );
+	if ( !pInstance )
+		return false;
+	
+	pInstance->SetLooping( EnableLooping );
+	return true;
+}

@@ -24,7 +24,8 @@ TFastTexture::TFastTexture(SoyRef Ref,TFramePool& FramePool) :
 	mRef					( Ref ),
 	mFrameBuffer			( DEFAULT_MAX_FRAME_BUFFERS, FramePool ),
 	mFramePool				( FramePool ),
-	mState					( TFastVideoState::FirstFrame )
+	mState					( TFastVideoState::FirstFrame ),
+	mLooping				( true )
 {
 }
 
@@ -59,6 +60,11 @@ void TFastTexture::SetDevice(ofPtr<TUnityDevice> Device)
 	//	set new device
 	mDevice = Device;
 	CreateUploadThread(false);	//	maybe true?
+}
+
+void TFastTexture::SetLooping(bool EnableLooping)
+{
+	mLooping = EnableLooping;
 }
 
 void TFastTexture::SetState(TFastVideoState::Type State)
@@ -321,6 +327,18 @@ void TFastTexture::OnPostRender()
 			BufferString<100> Debug;
 			Debug << "Rendering " << Lag << "ms behind";
 			Unity::DebugLog( Debug );
+		}
+	}
+
+	if ( mDecoderThread )
+	{
+		if ( mDecoderThread->IsFinishedDecoding() )
+		{
+			if ( this->mLooping )
+			{
+				auto Filename = mDecoderThread->mParams.mFilename;
+				SetVideo( Filename );
+			}
 		}
 	}
 }

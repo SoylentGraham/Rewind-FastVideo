@@ -239,13 +239,15 @@ protected:
 	virtual void				threadedFunction();
 	bool						DecodeNextFrame();
 
+public:
+	TDecodeParams				mParams;
+
 protected:
 	ofMutexT<TFrameMeta>		mDecodeFormat;
 	bool						mFinishedDecoding;
 	TFramePool&					mFramePool;
 	ofPtr<TDecoder>				mDecoder;
 	TFrameBuffer&				mFrameBuffer;
-	TDecodeParams				mParams;
 
 	ofMutexT<SoyTime>			mMinTimestamp;	//	skip decoding frames before this time
 };

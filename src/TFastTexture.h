@@ -61,6 +61,7 @@ public:
 	bool				SetVideo(const std::wstring& Filename);
 	void				SetState(TFastVideoState::Type State);
 	void				SetDevice(ofPtr<TUnityDevice> Device);
+	void				SetLooping(bool EnableLooping);
    
 	SoyTime				GetFrameTime();
 	void				SetFrameTime(SoyTime Time);
@@ -87,6 +88,7 @@ public:
 private:
 	ofMutex					mRenderLock;		//	lock while rendering (from a different thread) so we don't deallocate mid-render
 	TFastVideoState::Type	mState;
+	bool					mLooping;
 	ofMutexT<SoyTime>		mFrame;
 	ofMutexT<SoyTime>		mLastUpdateTime;
 	TFrameBuffer			mFrameBuffer;

@@ -304,9 +304,6 @@ void TDecodeThread::threadedFunction()
 			continue;
 		
 		DecodeNextFrame();
-
-		if ( IsFinishedDecoding() )
-			break;
 	}
 }
 

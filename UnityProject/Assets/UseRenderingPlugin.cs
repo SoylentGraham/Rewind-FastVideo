@@ -15,10 +15,11 @@ public class FastVideo : MonoBehaviour
 	[DllImport ("FastVideo")]	private static extern ulong	AllocInstance();
 	[DllImport ("FastVideo")]	private static extern bool	FreeInstance(ulong Instance);
 	[DllImport ("FastVideo")]	private static extern void	SetDebugLogFunction(System.IntPtr FunctionPtr);
-	[DllImport ("FastVideo")]	private static extern void	SetTexture(ulong Instance,System.IntPtr Texture);
-	[DllImport ("FastVideo")]	private static extern void  SetVideo(ulong Instance,char[] Filename, int Length);
-    [DllImport ("FastVideo")]   private static extern void  Pause(ulong Instance);
-    [DllImport ("FastVideo")]   private static extern void  Resume(ulong Instance);
+	[DllImport ("FastVideo")]	private static extern bool	SetTexture(ulong Instance,System.IntPtr Texture);
+	[DllImport ("FastVideo")]	private static extern bool  SetVideo(ulong Instance,char[] Filename, int Length);
+    [DllImport ("FastVideo")]   private static extern bool  Pause(ulong Instance);
+    [DllImport ("FastVideo")]   private static extern bool  Resume(ulong Instance);
+    [DllImport ("FastVideo")]   private static extern bool  SetLooping(ulong Instance,bool EnableLooping);
 
 	//	delegate type and singleton
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -76,6 +77,11 @@ public class FastVideo : MonoBehaviour
     public void Resume()
     {
         Resume(mInstance);
+    }
+
+    public void SetLooping(bool EnableLooping)
+    {
+        SetLooping(mInstance,EnableLooping);
     }
 
     //	create end-of-render thread callback
