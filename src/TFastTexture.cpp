@@ -329,6 +329,18 @@ void TFastTexture::OnPostRender()
 			Unity::DebugLog( Debug );
 		}
 	}
+
+	if ( mDecoderThread )
+	{
+		if ( mDecoderThread->IsFinishedDecoding() )
+		{
+			if ( this->mLooping )
+			{
+				auto Filename = mDecoderThread->mParams.mFilename;
+				SetVideo( Filename );
+			}
+		}
+	}
 }
 
 SoyTime TFastTexture::GetFrameTime()
