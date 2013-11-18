@@ -36,6 +36,10 @@ static bool	OPENGL_REREADY_MAP			=true;	//	after we copy the dynamic texture, im
 static bool	OPENGL_USE_STREAM_TEXTURE	=true;	//	GL_STREAM_DRAW else GL_DYNAMIC_DRAW
 static bool DEBUG_RENDER_LAG = false;
 
+#if defined(TARGET_OSX)// && defined(ENABLE_OPENGL)
+static bool USE_APPLE_CLIENT_STORAGE	= true;
+#endif
+
 #define ENABLE_DEBUG_LOG
 
 //	buffer output log messages. OSX crashes randomly when we use the debug-console output on other threads (not sure if its just cos the c# funcs aren't thread safe?)
