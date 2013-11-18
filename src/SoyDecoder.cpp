@@ -32,7 +32,7 @@ bool TDecoder_Test::Init(const std::wstring& Filename)
 #if defined(ENABLE_DECODER_TEST)
 bool TDecoder_Test::PeekNextFrame(TFrameMeta& FrameMeta)
 {
-	FrameMeta = TFrameMeta( 4096, 2048, TFrameFormat::RGB );
+	FrameMeta = TFrameMeta( 4096, 2048, TFrameFormat::BGRA );
 	return true;
 }
 #endif
@@ -169,7 +169,7 @@ TDecodeThread::TDecodeThread(TDecodeParams& Params,TFrameBuffer& FrameBuffer,TFr
 
 TDecodeThread::~TDecodeThread()
 {
-	ofScopeTimerWarning Timer( __FUNCTION__, 1 );
+	Unity::TScopeTimerWarning Timer( __FUNCTION__, 1 );
 
 	Unity::DebugLog("~TDecodeThread release frames");
 	mFrameBuffer.ReleaseFrames();
@@ -235,7 +235,7 @@ bool TFrameBuffer::HasVideoToPop()
 
 TFramePixels* TFrameBuffer::PopFrame(SoyTime Timestamp)
 {
-	ofScopeTimerWarning Timer(__FUNCTION__,2);
+	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock lock( mFrameMutex );
 
 	if ( mFrameBuffers.GetSize() < FORCE_BUFFER_FRAME_COUNT )
@@ -312,7 +312,7 @@ void TDecodeThread::threadedFunction()
 
 void TFrameBuffer::PushFrame(TFramePixels* pFrame)
 {
-	ofScopeTimerWarning Timer(__FUNCTION__,2);
+	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock lock( mFrameMutex );
 
 	//	sort by time, it's possible we get frames out of order due to encoding
@@ -374,7 +374,7 @@ bool TDecodeThread::DecodeNextFrame()
 	if ( !mDecoder )
 		return false;
 
-	ofScopeTimerWarning Timer( "thread DecodeNextFrame", 1 );
+	Unity::TScopeTimerWarning Timer( "thread DecodeNextFrame", 1 );
 
 	//	alloc a frame
 	TFramePixels* Frame = mFramePool.Alloc( GetDecodedFrameMeta(), __FUNCTION__ );
@@ -475,13 +475,13 @@ void TDecoder::FreeDxvaContext()
 #if defined(ENABLE_DECODER_LIBAV)
 bool TDecoder_Libav::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacket,std::shared_ptr<AVFrame>& Frame,int& DataOffset)
 {
-	ofScopeTimerWarning Timer( __FUNCTION__, 1 );
+	Unity::TScopeTimerWarning Timer( __FUNCTION__, 1 );
 
 	//	not setup right??
 	if ( !mVideoStream )
 		return false;
 
-	ofScopeTimerWarning DecodeTimer( "avcodec_decode_video2", 1, false );
+	Unity::TScopeTimerWarning DecodeTimer( "avcodec_decode_video2", 1, false );
 
 	//	keep processing until a frame is loaded
 	int isFrameAvailable = false;
@@ -554,7 +554,7 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 {
 	TryAgain = false;
 
-	ofScopeTimerWarning Timer( "DecodeNextFrame TOTAL", 1 );
+	Unity::TScopeTimerWarning Timer( "DecodeNextFrame TOTAL", 1 );
 
 	TFrameMeta FrameMeta;
 	if ( !DecodeNextFrame( FrameMeta, mCurrentPacket, mFrame, mDataOffset ) )
@@ -613,7 +613,7 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 	avpicture_fill(&pict, OutputFrame.GetData(), GetFormat( OutputFrame.mMeta ), OutputFrame.GetWidth(), OutputFrame.GetHeight() );
 
 
-	ofScopeTimerWarning sws_getContext_Timer( "DecodeFrame - sws_getContext", 1 );
+	Unity::TScopeTimerWarning sws_getContext_Timer( "DecodeFrame - sws_getContext", 1 );
 	static int ScaleMode = SWS_POINT;
 //	static int ScaleMode = SWS_FAST_BILINEAR;
 //	static int ScaleMode = SWS_BILINEAR;
@@ -627,7 +627,7 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 		return false;
 	}
 
-	ofScopeTimerWarning sws_scale_Timer( "DecodeFrame - sws_scale", 1 );
+	Unity::TScopeTimerWarning sws_scale_Timer( "DecodeFrame - sws_scale", 1 );
 	sws_scale( ScaleContext, mFrame->data, mFrame->linesize, 0, mFrame->height, pict.data, pict.linesize);
 	sws_scale_Timer.Stop();
 	
@@ -640,7 +640,7 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 #if defined(ENABLE_DECODER_LIBAV)
 bool TDecoder_Libav::Init(const std::wstring& Filename)
 {
-	ofScopeTimerWarning Timer(__FUNCTION__,2);
+	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
 
 	std::string Filenamea( Filename.begin(), Filename.end() );
 

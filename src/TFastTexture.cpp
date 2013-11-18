@@ -216,7 +216,7 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 
 bool TFastTexture::UpdateFrameTexture(Unity::TTexture Texture,SoyTime& FrameCopied)
 {
-	ofScopeTimerWarning Timer(__FUNCTION__,2);
+	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
 
 	if ( !Texture )
 		return false;
@@ -249,7 +249,7 @@ bool TFastTexture::UpdateFrameTexture(Unity::TTexture Texture,SoyTime& FrameCopi
 
 bool TFastTexture::UpdateFrameTexture(Unity::TDynamicTexture Texture,SoyTime& FrameCopied)
 {
-	ofScopeTimerWarning Timer(__FUNCTION__,2);
+	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
 
 	if ( !Texture )
 		return false;
@@ -282,7 +282,7 @@ bool TFastTexture::UpdateFrameTexture(Unity::TDynamicTexture Texture,SoyTime& Fr
 
 void TFastTexture::OnPostRender()
 {
-	ofScopeTimerWarning Timer(__FUNCTION__,0);
+	Unity::TScopeTimerWarning Timer(__FUNCTION__,4);
 	//ofMutex::ScopedLock RenderLock(mRenderLock);
 
 	bool TargetChanged = false;
@@ -298,13 +298,13 @@ void TFastTexture::OnPostRender()
 #endif
 
 		//	get latest dynamic texture
-		ofScopeTimerWarning Timerb( BufferString<100>()<<__FUNCTION__<<"mUploadThread->CopyToTarget",0);
+		Unity::TScopeTimerWarning Timerb( BufferString<100>()<<__FUNCTION__<<"mUploadThread->CopyToTarget",4);
 		TargetChanged = mUploadThread->CopyToTarget( mTargetTexture, mTargetTextureFrame );
 	}
 	else
 	{
 		//	if we have no upload thread, copy straight to target texture
-		ofScopeTimerWarning Timerb( BufferString<100>()<<__FUNCTION__<<"UpdateFrameTexture",0);
+		Unity::TScopeTimerWarning Timerb( BufferString<100>()<<__FUNCTION__<<"UpdateFrameTexture",4);
 		TargetChanged = UpdateFrameTexture( mTargetTexture, mTargetTextureFrame );
 	}
 
@@ -345,7 +345,7 @@ void TFastTexture::OnTargetTextureChanged()
 
 void TFastTexture::UpdateFrameTime()
 {
-	ofScopeTimerWarning Timer(__FUNCTION__,2);
+	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock locka( mLastUpdateTime );
 	//	get step
 	SoyTime Now(true);

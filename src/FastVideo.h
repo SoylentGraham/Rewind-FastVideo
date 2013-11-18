@@ -34,17 +34,21 @@ static bool SHOW_POOL_FULL_MESSAGE	=	true;
 //#define FORCE_SINGLE_THREAD_UPLOAD
 static bool	OPENGL_REREADY_MAP			=true;	//	after we copy the dynamic texture, immediately re-open the map
 static bool	OPENGL_USE_STREAM_TEXTURE	=true;	//	GL_STREAM_DRAW else GL_DYNAMIC_DRAW
-static bool DEBUG_RENDER_LAG = true;
+static bool DEBUG_RENDER_LAG = false;
 
 #define ENABLE_DEBUG_LOG
+
+//	buffer output log messages. OSX crashes randomly when we use the debug-console output on other threads (not sure if its just cos the c# funcs aren't thread safe?)
+//	other platforms PROBABLY need it if OSX does.
 #define BUFFER_DEBUG_LOG
+
 //#define DEBUG_LOG_THREADSAFE
 //#define SINGLETON_THREADSAFE
 //#define DO_GL_FLUSH						glFlush
 
+#define ENABLE_TIMER_DEBUG_LOG			//	shows timer messages to unity
+
 class TFastTexture;
-
-
 
 
 
@@ -64,6 +68,21 @@ namespace Unity
 	inline void	DebugLog(const std::string& String)		{	DebugLog( String.c_str() );	}
 	void		DebugError(const char* str);
 	inline void	DebugError(const std::string& String)	{	DebugError( String.c_str() );	}
+
+	class TScopeTimerWarning : public ofScopeTimerWarning
+	{
+	public:
+		TScopeTimerWarning(const char* Name,uint64 WarningTimeMs,bool AutoStart=true) :
+#if defined(ENABLE_TIMER_DEBUG_LOG)
+		ofScopeTimerWarning( Name, WarningTimeMs, AutoStart, DebugLog )
+#else
+		ofScopeTimerWarning( Name, WarningTimeMs, AutoStart, ofLogNotice )
+#endif
+		{
+		};
+	};
+	
+	
 };
 
 extern "C" EXPORT_API Unity::ulong	AllocInstance();
@@ -115,9 +134,9 @@ public:
 	
 #if defined(BUFFER_DEBUG_LOG)
 	void				FlushDebugLogBuffer();
-	void				DebugLog(const char* String);
 	void				BufferDebugLog(const char* String,const char* Prefix=nullptr);
 #endif
+	void				DebugLog(const char* String);
 	
 private:
 	int					FindInstanceIndex(SoyRef InstanceRef);
