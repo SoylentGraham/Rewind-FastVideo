@@ -300,6 +300,7 @@ void TFastVideo::DebugLog(const char* String)
 
 
 
+
 extern "C" void EXPORT_API UnitySetGraphicsDevice(void* device, int deviceType, int eventType)
 {
 	auto DeviceEvent = static_cast<Unity::TGfxDeviceEvent::Type>( eventType );
@@ -356,5 +357,15 @@ extern "C" EXPORT_API bool Resume(Unity::ulong Instance)
 		return false;
 	
 	pInstance->SetState( TFastVideoState::Playing );
+	return true;
+}
+
+extern "C" EXPORT_API bool SetLooping(Unity::ulong Instance,bool EnableLooping)
+{
+	auto* pInstance = Unity::GetFastVideo().FindInstance( SoyRef(Instance) );
+	if ( !pInstance )
+		return false;
+	
+	pInstance->SetLooping( EnableLooping );
 	return true;
 }
