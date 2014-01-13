@@ -274,6 +274,7 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture TextureU,const TFramePixels&
 		Texture->GetDesc(&SrcDesc);
 
 		D3D11_MAPPED_SUBRESOURCE resource;
+		ZeroMemory( &resource, sizeof(resource) );
 		int SubResource = 0;
 		int flags = Blocking ? D3D11_MAP_FLAG_DO_NOT_WAIT : 0x0;
 		HRESULT hr = ctx->Map( Texture, SubResource, D3D11_MAP_WRITE_DISCARD, flags, &resource);
