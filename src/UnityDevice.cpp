@@ -276,8 +276,23 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture TextureU,const TFramePixels&
 		D3D11_MAPPED_SUBRESOURCE resource;
 		ZeroMemory( &resource, sizeof(resource) );
 		int SubResource = 0;
-		int flags = Blocking ? D3D11_MAP_FLAG_DO_NOT_WAIT : 0x0;
-		HRESULT hr = ctx->Map( Texture, SubResource, D3D11_MAP_WRITE_DISCARD, flags, &resource);
+		//bool IsDefferedContext = (ctx->GetType() == D3D11_DEVICE_CONTEXT_DEFERRED);
+		bool IsDefferedContext = true;
+
+		int MapFlags;
+		D3D11_MAP MapMode;
+		if ( IsDefferedContext )
+		{
+			MapFlags = 0x0;
+			MapMode = D3D11_MAP_WRITE_DISCARD;
+		}
+		else
+		{
+			MapFlags = !Blocking ? D3D11_MAP_FLAG_DO_NOT_WAIT : 0x0;
+			MapMode = D3D11_MAP_WRITE;
+		}
+
+		HRESULT hr = ctx->Map(Texture, SubResource, MapMode, MapFlags, &resource);
 
 		//	specified do not block, and GPU is using the texture
 		if ( !Blocking && hr == DXGI_ERROR_WAS_STILL_DRAWING )
