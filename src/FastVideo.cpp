@@ -6,6 +6,15 @@
 #include "TFastTexture.h"
 
 
+
+bool USE_TEST_DECODER = false;
+bool ENABLE_TIMER_DEBUG_LOG = false;		//	shows timer messages to unity
+bool ENABLE_ERROR_LOG = true;			//	big-error debug
+bool ENABLE_FULL_DEBUG_LOG = false;		//	coder-only debug
+bool ENABLE_LAG_DEBUG_LOG = false;		//	decoder lag
+
+
+
 namespace Unity
 {
 	namespace Private
@@ -58,7 +67,7 @@ SoyRef TFastVideo::AllocInstance()
 	
 	mInstances.PushBack( pInstance );
 
-	Unity::DebugLog( BufferString<100>() << "Allocated instance: " << pInstance->GetRef() );
+	Unity::Debug( BufferString<100>() << "Allocated instance: " << pInstance->GetRef() );
 
 	return pInstance->GetRef();
 }
@@ -69,14 +78,14 @@ bool TFastVideo::FreeInstance(SoyRef InstanceRef)
 	int Index = FindInstanceIndex( InstanceRef );
 	if ( Index < 0 )
 	{
-		Unity::DebugLog( BufferString<100>() << "Failed to find instance: " << InstanceRef );
+		Unity::DebugError( BufferString<100>() << "Failed to find instance: " << InstanceRef );
 		return false;
 	}
 
 	auto* pInstance = mInstances[Index];
 	mInstances.RemoveBlock( Index, 1 );
 	delete pInstance;
-	Unity::DebugLog( BufferString<100>() << "Free'd instance: " << InstanceRef );
+	Unity::Debug( BufferString<100>() << "Free'd instance: " << InstanceRef );
 
 	//	if we have no more instances, the frame pool should be empty
 	if ( mInstances.IsEmpty() )
@@ -112,6 +121,11 @@ int TFastVideo::FindInstanceIndex(SoyRef Ref)
 
 void TFastVideo::OnPostRender()
 {
+	//	flush debug log, before & after work so we print even with no device
+#if defined(BUFFER_DEBUG_LOG)
+	FlushDebugLogBuffer();
+#endif
+
 	ofMutex::ScopedLock Lock( mInstancesLock );
 
 	if ( !mDevice )
@@ -147,7 +161,7 @@ bool TFastVideo::AllocDevice(Unity::TGfxDevice::Type DeviceType,void* Device)
 	{
 		//	no warning if explicitly no device
 		if ( DeviceType != Unity::TGfxDevice::Invalid )
-			Unity::DebugLog(BufferString<1000>() <<"Failed to allocated device " << DeviceType );
+			Unity::DebugError(BufferString<1000>() <<"Failed to allocated device " << DeviceType );
 	}
 
 	//	update device on all instances (remove, or add)
@@ -219,11 +233,11 @@ extern "C" void EXPORT_API SetDebugLogFunction(Unity::TDebugLogFunc pFunc)
 	FastVideo.mDebugFunc = pFunc;
 #endif
 	
-	Unity::DebugLog("FastVideo debug-log initialised okay");
+	Unity::ConsoleLog("FastVideo debug-log initialised okay");
 }
 
 // Prints a string
-void Unity::DebugLog(const char* str)
+void Unity::ConsoleLog(const char* str)
 {
 	//	print out to visual studio debugger
 	ofLogNotice(str);
@@ -238,19 +252,6 @@ void Unity::DebugLog(const char* str)
 #endif
 }
 
-void Unity::DebugError(const char* str)
-{
-	//	print out to visual studio debugger
-	ofLogError(str);
-	
-	auto& FastVideo = Unity::GetFastVideo();
-	
-#if defined(BUFFER_DEBUG_LOG)
-	FastVideo.BufferDebugLog( str, "Error" );
-#else
-	FastVideo.DebugLog( str );
-#endif
-}
 
 
 #if defined(BUFFER_DEBUG_LOG)
@@ -335,7 +336,7 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID)
 			break;
 
 		default:
-			Unity::DebugLog( BufferString<100>() << "Unknown UnityRenderEvent [" << eventID << "]" );
+			Unity::DebugError( BufferString<100>() << "Unknown UnityRenderEvent [" << eventID << "]" );
 			break;
 	}
 }
@@ -360,12 +361,37 @@ extern "C" EXPORT_API bool Resume(Unity::ulong Instance)
 	return true;
 }
 
-extern "C" EXPORT_API bool SetLooping(Unity::ulong Instance,bool EnableLooping)
+extern "C" EXPORT_API bool SetLooping(Unity::ulong Instance, bool EnableLooping)
 {
-	auto* pInstance = Unity::GetFastVideo().FindInstance( SoyRef(Instance) );
-	if ( !pInstance )
+	auto* pInstance = Unity::GetFastVideo().FindInstance(SoyRef(Instance));
+	if (!pInstance)
 		return false;
-	
-	pInstance->SetLooping( EnableLooping );
+
+	pInstance->SetLooping(EnableLooping);
 	return true;
+}
+
+extern "C" EXPORT_API void EnableTestDecoder(bool Enable)
+{
+	USE_TEST_DECODER = Enable;
+}
+
+extern "C" EXPORT_API void EnableDebugTimers(bool Enable)
+{
+	ENABLE_TIMER_DEBUG_LOG = Enable;
+}
+
+extern "C" EXPORT_API void EnableDebugLag(bool Enable)
+{
+	ENABLE_LAG_DEBUG_LOG = Enable;
+}
+
+extern "C" EXPORT_API void EnableDebugError(bool Enable)
+{
+	ENABLE_ERROR_LOG = Enable;
+
+}
+extern "C" EXPORT_API void EnableDebugFull(bool Enable)
+{
+	ENABLE_FULL_DEBUG_LOG = true;
 }

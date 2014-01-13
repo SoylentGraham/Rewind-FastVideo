@@ -99,7 +99,7 @@ bool TPacket::reset(AVFormatContext* ctxt)
 	{
 		BufferString<1000> Debug;
 		Debug << "Error reading next packet; " << GetAVError( err );
-		Unity::DebugLog( Debug );
+		Unity::DebugError(Debug);
 
 		packet.data = nullptr;
 		return false;
@@ -164,28 +164,33 @@ TDecodeThread::TDecodeThread(TDecodeParams& Params,TFrameBuffer& FrameBuffer,TFr
 	mParams				( Params ),
 	mFinishedDecoding	( false )
 {
-	Unity::DebugLog(__FUNCTION__);
+	Unity::Debug(__FUNCTION__);
 }
 
 TDecodeThread::~TDecodeThread()
 {
 	Unity::TScopeTimerWarning Timer( __FUNCTION__, 1 );
 
-	Unity::DebugLog("~TDecodeThread release frames");
+	Unity::Debug("~TDecodeThread release frames");
 	mFrameBuffer.ReleaseFrames();
 
-	Unity::DebugLog("~TDecodeThread WaitForThread");
+	Unity::Debug("~TDecodeThread WaitForThread");
 	waitForThread();
 
-	Unity::DebugLog("~TDecodeThread finished");
+	Unity::Debug("~TDecodeThread finished");
 }
 
 
 bool TDecodeThread::Init()
 {
-	Unity::DebugLog( __FUNCTION__ );
+	Unity::Debug(__FUNCTION__);
 
 	//	alloc decoder
+#if defined(ENABLE_DECODER_TEST)
+	if (!mDecoder && USE_TEST_DECODER )
+		mDecoder = ofPtr<TDecoder>(new TDecoder_Test());
+#endif
+
 #if defined(ENABLE_DECODER_LIBAV)
 	if ( !mDecoder )
 		mDecoder = ofPtr<TDecoder>( new TDecoder_Libav() );
@@ -208,9 +213,9 @@ bool TDecodeThread::Init()
 	if ( !mDecoder->Init(mParams.mFilename.c_str()) )
 		return false;
 
-	Unity::DebugLog("TDecodeThread - starting thread");
+	Unity::Debug("TDecodeThread - starting thread");
 	startThread( true, true );
-	Unity::DebugLog("TDecodeThread - starting thread OK");
+	Unity::Debug("TDecodeThread - starting thread OK");
 	return true;
 }
 
@@ -264,7 +269,7 @@ TFramePixels* TFrameBuffer::PopFrame(SoyTime Timestamp)
 	{
 		BufferString<100> Debug;
 		Debug << "Skipping " << SkipCount << " frames";
-		Unity::DebugLog( Debug );
+		Unity::DebugDecodeLag(Debug);
 
 
 		//	pop & release the first X frames we're going to skip
@@ -508,7 +513,7 @@ bool TDecoder_Libav::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacke
 		if (processedLength < 0) 
 		{
 			//av_free_packet(&packet);
-			Unity::DebugLog("Error while processing the data");
+			Unity::Debug("Error while processing packet data");
 			return false;
 		}
 		DataOffset += processedLength;
@@ -583,7 +588,7 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 	{
 		BufferString<100> Debug;
 		Debug << (DECODER_SKIP_OOO_FRAMES?"Skipped":"Decoded") << " out-of-order frames " << mLastDecodedTimestamp << " ... " << OutputFrame.mTimestamp;
-		Unity::DebugLog( Debug );
+		Unity::Debug(Debug);
 
 		if ( DECODER_SKIP_OOO_FRAMES )
 		{
@@ -598,8 +603,8 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 	if ( OutputFrame.mTimestamp < MinTimestamp && MinTimestamp.IsValid() && !STORE_PAST_FRAMES )
 	{
 		BufferString<100> Debug;
-		Debug << "Decoded frame " << OutputFrame.mTimestamp << " too far behind " << MinTimestamp;
-		Unity::DebugLog( Debug );
+		Debug << "Decoded frame " << OutputFrame.mTimestamp << " too far behind " << MinTimestamp << " [skipped]";
+		Unity::DebugDecodeLag(Debug);
 		TryAgain = true;
 		return false;
 	}
@@ -620,7 +625,7 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 
 	if ( !ScaleContext )
 	{
-		Unity::DebugLog("Failed to get converter");
+		Unity::DebugError("Failed to get converter");
 		return false;
 	}
 
@@ -646,7 +651,7 @@ bool TDecoder_Libav::Init(const std::wstring& Filename)
 	{
 		BufferString<1000> Debug;
 		Debug << Filenamea << " doesn't exist";
-		Unity::DebugLog( Debug );
+		Unity::DebugError( Debug );
 		return false;
 	}
 
@@ -659,7 +664,7 @@ bool TDecoder_Libav::Init(const std::wstring& Filename)
 	int err = avformat_open_input( &avFormatPtr, Filenamea.c_str(), nullptr, nullptr );
 	if ( err != 0 )
 	{
-		Unity::DebugLog( GetAVError(err) );
+		Unity::DebugError( GetAVError(err) );
 		return false;
 	}
 
@@ -667,7 +672,7 @@ bool TDecoder_Libav::Init(const std::wstring& Filename)
 	err = avformat_find_stream_info( mContext.get(), nullptr );
 	if ( err < 0)
 	{
-		Unity::DebugLog( GetAVError(err) );
+		Unity::DebugError( GetAVError(err) );
 		return false;
 	}
 
@@ -683,7 +688,7 @@ bool TDecoder_Libav::Init(const std::wstring& Filename)
 	}
 	if ( !mVideoStream )
 	{
-		Unity::DebugLog("failed to find a video stream");
+		Unity::DebugError("failed to find a video stream");
 		return false;
 	}
 	
@@ -697,7 +702,7 @@ bool TDecoder_Libav::Init(const std::wstring& Filename)
 		{
 			BufferString<100> Debug;
 			Debug << "Found hardware accellerator \"" << hwaccel->name << "\"";
-			Unity::DebugLog( Debug );
+			Unity::Debug(Debug);
 
 			if ( hwaccel->id == codecid	) //CODEC_ID_H264))
 			{
@@ -718,7 +723,7 @@ bool TDecoder_Libav::Init(const std::wstring& Filename)
 	const auto codec = avcodec_find_decoder( mVideoStream->codec->codec_id );
 	if ( codec == nullptr )
 	{
-		Unity::DebugLog("Failed to find codec for video");
+		Unity::DebugError("Failed to find codec for video");
 		return false;
 	}
 
@@ -751,7 +756,7 @@ bool TDecoder_Libav::Init(const std::wstring& Filename)
 	err = avcodec_open2(mCodec.get(), codec, nullptr);
 	if ( err < 0)
 	{
-		Unity::DebugLog( GetAVError(err) );
+		Unity::DebugError( GetAVError(err) );
 		return false;
 	}
 

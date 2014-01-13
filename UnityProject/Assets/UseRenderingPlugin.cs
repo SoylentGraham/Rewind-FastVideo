@@ -16,13 +16,18 @@ public class FastVideo : MonoBehaviour
 	[DllImport ("FastVideo")]	private static extern bool	FreeInstance(ulong Instance);
 	[DllImport ("FastVideo")]	private static extern void	SetDebugLogFunction(System.IntPtr FunctionPtr);
 	[DllImport ("FastVideo")]	private static extern bool	SetTexture(ulong Instance,System.IntPtr Texture);
-	[DllImport ("FastVideo")]	private static extern bool  SetVideo(ulong Instance,char[] Filename, int Length);
-    [DllImport ("FastVideo")]   private static extern bool  Pause(ulong Instance);
-    [DllImport ("FastVideo")]   private static extern bool  Resume(ulong Instance);
-    [DllImport ("FastVideo")]   private static extern bool  SetLooping(ulong Instance,bool EnableLooping);
+	[DllImport ("FastVideo")]	private static extern bool	SetVideo(ulong Instance,char[] Filename, int Length);
+	[DllImport ("FastVideo")]	private static extern bool	Pause(ulong Instance);
+	[DllImport ("FastVideo")]	private static extern bool	Resume(ulong Instance);
+	[DllImport ("FastVideo")]	private static extern bool	SetLooping(ulong Instance,bool EnableLooping);
+	[DllImport ("FastVideo")]	public static extern void	EnableTestDecoder(bool Enable);
+	[DllImport ("FastVideo")]	public static extern void	EnableDebugTimers(bool Enable);
+	[DllImport ("FastVideo")]	public static extern void	EnableDebugLag(bool Enable);
+	[DllImport ("FastVideo")]	public static extern void	EnableDebugError(bool Enable);
+	[DllImport ("FastVideo")]	public static extern void	EnableDebugFull(bool Enable);
 
 	//	delegate type and singleton
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+	[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
 	private delegate void			DebugLogDelegate(string str);
 	static private DebugLogDelegate	gDebugLogDelegate;
 	
@@ -173,11 +178,16 @@ public class UseRenderingPlugin : FastVideo {
         if (Input.GetMouseButton(0))
         {
             //	change/restart video
-           // System.String Filename = "D:\\bike 4096-2048.mov";
-            System.String Filename = "D:\\bike-x264.mpg";
-           // System.String Filename = "D:\\bike rgba.mpg";
+           	System.String Filename;
+           // Filename = "D:\\bike 4096-2048.mov";
+            // Filename = "D:\\bike-x264.mpg";
+             Filename = "D:\\bike-x264.mpg";
+           // Filename = "D:\\bike rgba.mpg";
+           	Filename = "g:\\bike.h264";
             
-            SetVideo(Filename);
+ 		EnableDebugTimers( false );
+		EnableDebugLag( true );
+		SetVideo(Filename);
         }
         if (Input.GetMouseButton(1))
         {

@@ -65,7 +65,7 @@ void TFramePool::DebugUsedFrames()
 		
 		BufferString<1000> Debug;
 		Debug << "Frame [" << i << "] allocated; owner: " << Frame.mDebugOwner;
-		Unity::DebugLog( Debug );
+		Unity::Debug( Debug );
 	}
 }
 
@@ -136,7 +136,7 @@ TFramePixels* TFramePool::Alloc(TFrameMeta FrameMeta,const char* Owner)
 			FreeFrame = new TFramePixels( FrameMeta, "TFramePool - alloc" );
 			BufferString<1000> Debug;
 			Debug << "Allocating new block; " << " pool size; " << GetAllocatedCount();
-			Unity::DebugLog( Debug );
+			Unity::Debug(Debug);
 
 			if ( FreeFrame )
 				mUsedPool.PushBack( FreeFrame );
@@ -147,7 +147,7 @@ TFramePixels* TFramePool::Alloc(TFrameMeta FrameMeta,const char* Owner)
 			{
 				BufferString<1000> Debug;
 				Debug << "Frame pool is full (" << GetAllocatedCount() << ")";
-				Unity::DebugLog( Debug );
+				Unity::Debug(Debug);
 			}
 		}
 	}

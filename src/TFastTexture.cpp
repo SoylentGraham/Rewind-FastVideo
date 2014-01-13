@@ -40,7 +40,7 @@ TUnityDevice& TFastTexture::GetDevice()
     static TUnityDevice_Dummy DummyDevice;
     if ( !mDevice )
     {
-        Unity::DebugLog("Device expected");
+        Unity::Debug("Device expected");
         return DummyDevice;
     }
     return *mDevice;
@@ -74,7 +74,7 @@ void TFastTexture::SetState(TFastVideoState::Type State)
 
 	BufferString<100> Debug;
 	Debug << GetRef() << " " << TFastVideoState::ToString(State);
-	Unity::DebugLog( Debug );
+	Unity::Debug( Debug );
 }
 
 void TFastTexture::DeleteTargetTexture()
@@ -156,7 +156,7 @@ bool TFastTexture::SetTexture(Unity::TTexture TargetTexture)
 		auto TextureMeta = Device.GetTextureMeta( TargetTexture );
 		BufferString<100> Debug;
 		Debug << "Assigning target texture; " << TextureMeta.mWidth << "x" << TextureMeta.mHeight << "x" << TextureMeta.GetChannels();
-		Unity::DebugLog( Debug );
+		Unity::Debug( Debug );
 	}
 	mTargetTexture = TargetTexture;
 
@@ -197,7 +197,7 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 		TFramePixels* Frame = mFramePool.Alloc( TextureFormat, "Debug failed init" );
 		if ( Frame )
 		{
-			Unity::DebugLog( BufferString<100>()<<"Pushing Debug ERROR Frame; " << __FUNCTION__ );
+			Unity::Debug(BufferString<100>() << "Pushing Debug ERROR Frame; " << __FUNCTION__);
 			Frame->SetColour( ENABLE_FAILED_DECODER_INIT_FRAME );
 			mFrameBuffer.PushFrame( Frame );	
 		}
@@ -205,7 +205,7 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 		{
 			BufferString<100> Debug;
 			Debug << "failed to alloc debug Init frame";
-			Unity::DebugLog( Debug );
+			Unity::DebugError(Debug);
 		}
 #endif
 
@@ -321,7 +321,7 @@ void TFastTexture::OnPostRender()
 	if ( TargetChanged )
 		OnTargetTextureChanged();
 
-	if ( TargetChanged && DEBUG_RENDER_LAG )
+	if ( TargetChanged )
 	{
 		auto Now = GetFrameTime();
 		auto Lag = Now.GetTime() - mTargetTextureFrame.GetTime();
@@ -330,7 +330,7 @@ void TFastTexture::OnPostRender()
 		{
 			BufferString<100> Debug;
 			Debug << "Rendering " << Lag << "ms behind";
-			Unity::DebugLog( Debug );
+			Unity::DebugDecodeLag(Debug);
 		}
 	}
 
@@ -422,7 +422,7 @@ void TFastTexture::SetFrameTime(SoyTime Frame)
 
 	BufferString<100> Debug;
 	Debug << "Set frametime: " << mFrame.Get();
-	Unity::DebugLog( Debug );
+	Unity::Debug( Debug );
 }
 
 
@@ -535,7 +535,7 @@ bool TFastTextureUploadThread::CreateDynamicTexture()
 		{
 			BufferString<100> Debug;
 			Debug << "Failed to alloc dynamic texture; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.GetChannels();
-			Unity::DebugLog( Debug );
+			Unity::DebugError( Debug );
 
 			DeleteDynamicTexture();
 			return false;
