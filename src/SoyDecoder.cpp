@@ -648,7 +648,15 @@ void TDecoder_Libav::LogCallback(void *ptr, int level, const char *fmt, va_list 
 		AVClass *avc = *(AVClass**)ptr;
 		module = avc->item_name(ptr);
 	}
-	vsnprintf_s(message, sizeof(message), fmt, vargs);
+	try
+	{
+		vsnprintf_s(message, sizeof(message), fmt, vargs);
+	}
+	catch (...)
+	{
+		Unity::DebugDecoder(fmt);
+		return;
+	}
 
 	Unity::DebugDecoder(message);
 }
