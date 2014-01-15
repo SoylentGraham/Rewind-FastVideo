@@ -54,6 +54,7 @@ extern bool ENABLE_TIMER_DEBUG_LOG;
 extern bool ENABLE_ERROR_LOG;
 extern bool ENABLE_FULL_DEBUG_LOG;
 extern bool ENABLE_LAG_DEBUG_LOG;
+extern bool ENABLE_DECODER_DEBUG_LOG;
 
 class TFastTexture;
 
@@ -81,6 +82,8 @@ namespace Unity
 	inline void	DebugTimer(const char* String)				{ ENABLE_TIMER_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 	inline void	DebugDecodeLag(const std::string& String)	{ ENABLE_LAG_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 	inline void	DebugDecodeLag(const char* String)			{ ENABLE_LAG_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+	inline void	DebugDecoder(const std::string& String)		{ ENABLE_DECODER_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+	inline void	DebugDecoder(const char* String)			{ ENABLE_DECODER_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 	inline void	Debug(const std::string& String)			{ ENABLE_FULL_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 	inline void	Debug(const char* String)					{ ENABLE_FULL_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 

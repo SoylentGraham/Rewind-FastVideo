@@ -156,7 +156,8 @@ public:
 	
 private:
 	bool			DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& Packet,std::shared_ptr<AVFrame>& Frame,int& DataOffset);
-	
+	static void		LogCallback(void *ptr, int level, const char *fmt, va_list vargs);
+
 #if defined(ENABLE_DVXA)
 	bool			InitDxvaContext();
 	void			FreeDxvaContext();

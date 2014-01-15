@@ -637,6 +637,22 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 }
 #endif
 
+#if defined(ENABLE_DECODER_LIBAV)
+void TDecoder_Libav::LogCallback(void *ptr, int level, const char *fmt, va_list vargs)
+{
+	static char message[8192];
+	const char *module = NULL;
+
+	if (ptr)
+	{
+		AVClass *avc = *(AVClass**)ptr;
+		module = avc->item_name(ptr);
+	}
+	vsnprintf_s(message, sizeof(message), fmt, vargs);
+
+	Unity::DebugDecoder(message);
+}
+#endif
 
 
 #if defined(ENABLE_DECODER_LIBAV)
@@ -645,9 +661,10 @@ bool TDecoder_Libav::Init(const std::wstring& Filename)
 	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
 
 	std::string Filenamea( Filename.begin(), Filename.end() );
+	bool IsUrl = Soy::StringBeginsWith(Filenamea, "rtsp", false);
 
 	//	check file exists
-	if ( !PathFileExists(Filename.c_str()) )
+	if ( !IsUrl && !PathFileExists(Filename.c_str()) )
 	{
 		BufferString<1000> Debug;
 		Debug << Filenamea << " doesn't exist";
@@ -657,7 +674,8 @@ bool TDecoder_Libav::Init(const std::wstring& Filename)
 
 	//	init lib av
 	av_register_all();
-
+	av_log_set_callback(&TDecoder_Libav::LogCallback);
+	avformat_network_init();
 
 	mContext = std::shared_ptr<AVFormatContext>(avformat_alloc_context(), &avformat_free_context);
 	auto avFormatPtr = mContext.get();

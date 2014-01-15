@@ -12,6 +12,7 @@ bool ENABLE_TIMER_DEBUG_LOG = false;		//	shows timer messages to unity
 bool ENABLE_ERROR_LOG = true;			//	big-error debug
 bool ENABLE_FULL_DEBUG_LOG = false;		//	coder-only debug
 bool ENABLE_LAG_DEBUG_LOG = false;		//	decoder lag
+bool ENABLE_DECODER_DEBUG_LOG = false;		//	libav output
 
 
 
