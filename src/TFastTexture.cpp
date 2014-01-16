@@ -21,12 +21,17 @@ TFastTexture::TFastTexture(SoyRef Ref,TFramePool& FramePool) :
 	mFrameBuffer			( DEFAULT_MAX_FRAME_BUFFERS, FramePool ),
 	mFramePool				( FramePool ),
 	mState					( TFastVideoState::FirstFrame ),
-	mLooping				( true )
+	mLooping				( true ),
+	SoyThread				( "TFastTexture" )
 {
+	startThread( true, true );
 }
 
 TFastTexture::~TFastTexture()
 {
+	//	wait for self thread to finish
+	waitForThread();
+
 	//	wait for render to finish
 	ofMutex::ScopedLock Lock( mRenderLock );
 
@@ -183,32 +188,14 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 	//	 alloc new decoder thread
 	TDecodeParams Params;
 	Params.mFilename = Filename;
+	Params.mTargetTextureMeta = Device.GetTextureMeta( mTargetTexture );
 	mDecoderThread = ofPtr<TDecodeThread>( new TDecodeThread( Params, mFrameBuffer, mFramePool ) );
 
 	//	do initial init, will verify filename, dimensions, etc
 	if ( !mDecoderThread->Init() )
 	{
 		DeleteDecoderThread();
-				
-#if defined(ENABLE_FAILED_DECODER_INIT_FRAME)
-		//	push a red "BAD" frame
-		//	gr: was dynamic texture format
-		TFrameMeta TextureFormat = Device.GetTextureMeta( mTargetTexture );
-		TFramePixels* Frame = mFramePool.Alloc( TextureFormat, "Debug failed init" );
-		if ( Frame )
-		{
-			Unity::Debug(BufferString<100>() << "Pushing Debug ERROR Frame; " << __FUNCTION__);
-			Frame->SetColour( ENABLE_FAILED_DECODER_INIT_FRAME );
-			mFrameBuffer.PushFrame( Frame );	
-		}
-		else
-		{
-			BufferString<100> Debug;
-			Debug << "failed to alloc debug Init frame";
-			Unity::DebugError(Debug);
-		}
-#endif
-
+		OnDecoderInitFailed();
 		return false;
 	}
 
@@ -223,7 +210,28 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 	return true;
 }
 
-
+void TFastTexture::OnDecoderInitFailed()
+{
+#if defined(ENABLE_FAILED_DECODER_INIT_FRAME)
+	//	push a red "BAD" frame
+    auto& Device = GetDevice();
+	//	gr: was dynamic texture format
+	TFrameMeta TextureFormat = Device.GetTextureMeta( mTargetTexture );
+	TFramePixels* Frame = mFramePool.Alloc( TextureFormat, "Debug failed init" );
+	if ( Frame )
+	{
+		Unity::Debug(BufferString<100>() << "Pushing Debug ERROR Frame; " << __FUNCTION__);
+		Frame->SetColour( ENABLE_FAILED_DECODER_INIT_FRAME );
+		mFrameBuffer.PushFrame( Frame );	
+	}
+	else
+	{
+		BufferString<100> Debug;
+		Debug << "failed to alloc debug Init frame";
+		Unity::DebugError(Debug);
+	}
+#endif
+}
 bool TFastTexture::UpdateFrameTexture(Unity::TTexture Texture,SoyTime& FrameCopied)
 {
 	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
@@ -290,6 +298,34 @@ bool TFastTexture::UpdateFrameTexture(Unity::TDynamicTexture Texture,SoyTime& Fr
 	return true;
 }
 
+void TFastTexture::Update()
+{
+	if ( mDecoderThread )
+	{
+		if ( mDecoderThread->HasFailedInitialisation() )
+			OnDecoderInitFailed();
+
+		if ( mDecoderThread->HasFinishedDecoding() )
+		{
+			if ( this->mLooping )
+			{
+				auto Filename = mDecoderThread->mParams.mFilename;
+				SetVideo( Filename );
+			}
+		}
+	}
+}
+
+void TFastTexture::threadedFunction()
+{
+	while ( isThreadRunning() )
+	{
+		int SleepMs = static_cast<int>( 1000.f/100.f );
+		Sleep( SleepMs );
+		Update();
+	}
+}
+
 void TFastTexture::OnPostRender()
 {
 	Unity::TScopeTimerWarning Timer(__FUNCTION__,4);
@@ -334,17 +370,7 @@ void TFastTexture::OnPostRender()
 		}
 	}
 
-	if ( mDecoderThread )
-	{
-		if ( mDecoderThread->IsFinishedDecoding() )
-		{
-			if ( this->mLooping )
-			{
-				auto Filename = mDecoderThread->mParams.mFilename;
-				SetVideo( Filename );
-			}
-		}
-	}
+
 }
 
 SoyTime TFastTexture::GetFrameTime()

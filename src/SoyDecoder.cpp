@@ -22,8 +22,13 @@ TDecoder_Test::TDecoder_Test() :
 
 
 #if defined(ENABLE_DECODER_TEST)
-bool TDecoder_Test::Init(const std::wstring& Filename)
+bool TDecoder_Test::Init(const TDecodeParams& Params)
 {
+	//	debug test to see if a big init pause locks up unity
+	Sleep(4000);
+
+	//	delayed failure test
+	return false;
 	return true;
 }
 #endif
@@ -162,7 +167,7 @@ TDecodeThread::TDecodeThread(TDecodeParams& Params,TFrameBuffer& FrameBuffer,TFr
 	mFrameBuffer		( FrameBuffer ),
 	mFramePool			( FramePool ),
 	mParams				( Params ),
-	mFinishedDecoding	( false )
+	mState				( TDecodeState::NoThread )
 {
 	Unity::Debug(__FUNCTION__);
 }
@@ -183,12 +188,12 @@ TDecodeThread::~TDecodeThread()
 
 bool TDecodeThread::Init()
 {
-	Unity::Debug(__FUNCTION__);
+	Unity::TScopeTimerWarning Timer(__FUNCTION__, 4);
 
 	//	alloc decoder
 #if defined(ENABLE_DECODER_TEST)
 	if (!mDecoder && USE_TEST_DECODER )
-		mDecoder = ofPtr<TDecoder>(new TDecoder_Test());
+		mDecoder = ofPtr<TDecoder>( new TDecoder_Test() );
 #endif
 
 #if defined(ENABLE_DECODER_LIBAV)
@@ -207,17 +212,43 @@ bool TDecodeThread::Init()
 #endif
 	
 	if ( !mDecoder )
+	{
+		mState = TDecodeState::NoThread;
 		return false;
-		
-	//	init decoder
-	if ( !mDecoder->Init(mParams.mFilename.c_str()) )
-		return false;
+	}
+	mState = TDecodeState::Constructed;
+
+	//	push a clean-frame before we start the thread
+	PushInitFrame();
 
 	Unity::Debug("TDecodeThread - starting thread");
 	startThread( true, true );
 	Unity::Debug("TDecodeThread - starting thread OK");
 	return true;
 }
+
+bool TDecodeThread::HasFinishedDecoding() const
+{
+	switch ( mState )
+	{
+	case TDecodeState::FinishedDecoding:
+	case TDecodeState::FailedInitialisation:
+		return true;
+	}
+	return false;
+}
+
+
+bool TDecodeThread::HasFailedInitialisation() const
+{
+	switch ( mState )
+	{
+	case TDecodeState::FailedInitialisation:
+		return true;
+	}
+	return false;
+}
+
 
 void TFrameBuffer::ReleaseFrames()
 {
@@ -298,7 +329,14 @@ TFramePixels* TFrameBuffer::PopFrame(SoyTime Timestamp)
 
 void TDecodeThread::threadedFunction()
 {
-	while ( isThreadRunning() )
+	assert( mState == TDecodeState::Constructed );
+	//	init
+	if ( mDecoder && mDecoder->Init( mParams ) )
+		mState = TDecodeState::Decoding;
+	else
+		mState = TDecodeState::FailedInitialisation;
+
+	while ( isThreadRunning() && mState == TDecodeState::Decoding )
 	{
         ofThread::sleep(1);
 
@@ -371,6 +409,24 @@ void TDecodeThread::SetMinTimestamp(SoyTime Timestamp)
 	mMinTimestamp.Get() = Timestamp;
 }
 
+void TDecodeThread::PushInitFrame()
+{
+#if defined(ENABLE_DECODER_INIT_FRAME)
+	Unity::TScopeTimerWarning Timer( __FUNCTION__, 2 );
+
+	//	alloc a frame
+	//	dont know decoder dimensions yet, so use video meta
+	TFramePixels* Frame = mFramePool.Alloc( mParams.mTargetTextureMeta, __FUNCTION__ );
+
+	//	out of memory/pool, or non-valid format (ie. dont know output dimensions yet)
+	if ( !Frame )
+		return;
+
+	Frame->SetColour( ENABLE_DECODER_INIT_FRAME );
+	mFrameBuffer.PushFrame( Frame );
+#endif
+}
+
 bool TDecodeThread::DecodeNextFrame()
 {
 	if ( !mDecoder )
@@ -397,7 +453,7 @@ bool TDecodeThread::DecodeNextFrame()
 		//	failed, and failed hard
 		if ( !TryAgain )
 		{
-			mFinishedDecoding = true;
+			mState = TDecodeState::FinishedDecoding;
 			mFramePool.Free( Frame );
 			return false;
 		}
@@ -640,7 +696,6 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 #if defined(ENABLE_DECODER_LIBAV)
 void TDecoder_Libav::LogCallback(void *ptr, int level, const char *fmt, va_list vargs)
 {
-	static char message[8192];
 	const char *module = NULL;
 
 	if (ptr)
@@ -648,31 +703,27 @@ void TDecoder_Libav::LogCallback(void *ptr, int level, const char *fmt, va_list 
 		AVClass *avc = *(AVClass**)ptr;
 		module = avc->item_name(ptr);
 	}
-	try
-	{
-		vsnprintf_s(message, sizeof(message), fmt, vargs);
-	}
-	catch (...)
-	{
-		Unity::DebugDecoder(fmt);
-		return;
-	}
 
-	Unity::DebugDecoder(message);
+	//	gr: this throws too many asserts... so just print something, maybe missing the proper info but who cares for now
+	//	Expression : ("Incorrect format specifier", 0)
+	//static char message[8192];
+	//vsnprintf_s(message, sizeof(message), fmt, vargs);
+	//Unity::DebugDecoder(message);
+	Unity::DebugDecoder(fmt);
 }
 #endif
 
 
 #if defined(ENABLE_DECODER_LIBAV)
-bool TDecoder_Libav::Init(const std::wstring& Filename)
+bool TDecoder_Libav::Init(const TDecodeParams& Params)
 {
 	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
 
-	std::string Filenamea( Filename.begin(), Filename.end() );
+	std::string Filenamea( Params.mFilename.begin(), Params.mFilename.end() );
 	bool IsUrl = Soy::StringBeginsWith(Filenamea, "rtsp", false);
 
 	//	check file exists
-	if ( !IsUrl && !PathFileExists(Filename.c_str()) )
+	if ( !IsUrl && !PathFileExists(Params.mFilename.c_str()) )
 	{
 		BufferString<1000> Debug;
 		Debug << Filenamea << " doesn't exist";

@@ -197,8 +197,26 @@ TFramePixels::TFramePixels(TFrameMeta Meta,const char* Owner) :
 void TFramePixels::SetColour(const TColour& Colour)
 {
 	int Channels = mMeta.GetChannels();
-	for ( int i=0;	i<mPixels.GetSize();	i+=Channels )
+	
+	//	in case we have more channels than "a colour",make a safe array
+	BufferArray<uint8,10> Components( Channels );
+	bool AllSame = true;
+	for ( int i=0;	i<Components.GetSize();	i++ )
 	{
-		memcpy( &mPixels[i], &Colour, Channels );
+		Components[i] = Colour[i];
+		AllSame &= (Components[i] == Components[0]);
+	}
+
+	//	see if we can do a faster method
+	if ( AllSame )
+	{
+		memset( mPixels.GetArray(), Components[0], mPixels.GetDataSize() );
+	}
+	else
+	{
+		for ( int i=0;	i<mPixels.GetSize();	i+=Channels )
+		{	
+			memcpy( &mPixels[i], Components.GetArray(), Channels );
+		}
 	}
 }

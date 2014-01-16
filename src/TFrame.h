@@ -68,7 +68,17 @@ public:
 	{
 	}
 
-	inline bool		operator!=(const TColour& that) const	{	return (this->mRed!=that.mRed) || (this->mGreen!=that.mGreen) || (this->mBlue!=that.mBlue) || (this->mAlpha!=that.mAlpha);	}
+	inline bool				operator!=(const TColour& that) const	{	return (this->mRed!=that.mRed) || (this->mGreen!=that.mGreen) || (this->mBlue!=that.mBlue) || (this->mAlpha!=that.mAlpha);	}
+	inline unsigned char	operator[](int Index) const
+	{
+		switch ( Index )
+		{
+		case 0:		return mRed;
+		case 1:		return mGreen;
+		case 2:		return mBlue;
+		default:	return mAlpha;
+		}
+	}
 
 public:
 	unsigned char	mRed;

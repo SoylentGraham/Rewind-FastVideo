@@ -46,7 +46,7 @@ public:
 };
 
 //	instance of a video texture
-class TFastTexture
+class TFastTexture : public SoyThread
 {
 public:
 	TFastTexture(SoyRef Ref,TFramePool& FramePool);
@@ -72,13 +72,16 @@ public:
 	Unity::TTexture		GetTargetTexture()		{	return mTargetTexture;	}
 
 private:
+	void				Update();
+	void				UpdateFrameTime();
+	virtual void		threadedFunction();
+
 	bool				CreateUploadThread(bool IsRenderThread);
 
 	void				DeleteTargetTexture();
 	void				DeleteDecoderThread();
 	void				DeleteUploadThread();
-
-	void				UpdateFrameTime();
+	void				OnDecoderInitFailed();
   
     TUnityDevice&       GetDevice();
 

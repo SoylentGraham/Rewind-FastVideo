@@ -17,8 +17,9 @@
 #endif
 
 //#define ENABLE_DECODER_LIBAV_INIT_SIZE_FRAME		TColour(0,255,0,255)
+#define ENABLE_DECODER_INIT_FRAME			TColour(255,0,255,255)
 #define ENABLE_FAILED_DECODER_INIT_FRAME	TColour(255,0,0,255)
-#define ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR	TColour(255,255,0,255)
+//#define ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR	TColour(255,255,0,255)	//	gr: not done during render thread, causes big stall as GPU waits to be idle as dx::Map copy is blocking
 #define HARDWARE_INIT_TEXTURE_COLOUR		TColour(0,255,255,255)
 
 static bool SKIP_PAST_FRAMES	= true;

@@ -91,6 +91,7 @@ public:
 class TDecodeParams
 {
 public:
+	TFrameMeta		mTargetTextureMeta;
 	std::wstring	mFilename;
 };
 
@@ -123,22 +124,35 @@ public:
 	float		mFramesPerSecond;
 };
 
+namespace TDecodeState
+{
+	enum Type
+	{
+		NoThread = 0,
+		Constructed,
+		Initialising,
+		FailedInitialisation,
+		Decoding,
+		FinishedDecoding,
+	};
+};
+
 class TDecoder
 {
 public:
 	virtual ~TDecoder()	{}
 
-	virtual bool	Init(const std::wstring& Filename)=0;
-	TVideoMeta		GetVideoMeta()		{	return mVideoMeta;	}
-	TFrameMeta		GetFrameMeta()		{	return GetVideoMeta().mFrameMeta;	}
-	virtual bool	PeekNextFrame(TFrameMeta& FrameMeta)=0;
-	virtual bool	DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain)=0;
+	virtual bool		Init(const TDecodeParams& Params)=0;
+	TVideoMeta			GetVideoMeta()		{	return mVideoMeta;	}
+	TFrameMeta			GetFrameMeta()		{	return GetVideoMeta().mFrameMeta;	}
+	virtual bool		PeekNextFrame(TFrameMeta& FrameMeta)=0;
+	virtual bool		DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain)=0;
 
 public:
-	TVideoMeta							mVideoMeta;
-	SoyTime								mLastDecodedTimestamp;
+	TVideoMeta			mVideoMeta;
+	SoyTime				mLastDecodedTimestamp;
 #if defined(USE_REAL_TIMESTAMP)
-	SoyTime								mFakeRunningTimestamp;
+	SoyTime				mFakeRunningTimestamp;
 #endif
 };
 
@@ -150,7 +164,7 @@ public:
 	TDecoder_Libav();
 	virtual ~TDecoder_Libav();
 	
-	virtual bool	Init(const std::wstring& Filename);
+	virtual bool	Init(const TDecodeParams& Params);
 	bool			PeekNextFrame(TFrameMeta& FrameMeta);
 	bool			DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
 	
@@ -186,7 +200,7 @@ public:
 	TDecoder_Qtkit();
 	virtual ~TDecoder_Qtkit();
 	
-	virtual bool	Init(const std::wstring& Filename);
+	virtual bool	Init(const TDecodeParams& Params);
 	bool			PeekNextFrame(TFrameMeta& FrameMeta);
 	bool			DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
 	
@@ -208,7 +222,7 @@ class TDecoder_Test : public TDecoder
 public:
 	TDecoder_Test();
 	
-	virtual bool	Init(const std::wstring& Filename);
+	virtual bool	Init(const TDecodeParams& Params);
 	virtual bool	PeekNextFrame(TFrameMeta& FrameMeta);
 	virtual bool	DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
 	
@@ -228,24 +242,26 @@ public:
 	TDecodeThread(TDecodeParams& Params,TFrameBuffer& FrameBuffer,TFramePool& FramePool);
 	~TDecodeThread();
 
-	bool						Init();				//	do initial load and start thread
+	bool						Init();					//	make decoder and start thread
 	TFrameMeta					GetVideoFrameMeta()		{	return mDecoder ? mDecoder->GetFrameMeta() : TFrameMeta();	}
 	TFrameMeta					GetDecodedFrameMeta();
 	void						SetDecodedFrameMeta(TFrameMeta Format);
-	bool						IsFinishedDecoding()	{	return mFinishedDecoding;	}
 	SoyTime						GetMinTimestamp();
 	void						SetMinTimestamp(SoyTime Timestamp);
+	bool						HasFinishedDecoding() const;
+	bool						HasFailedInitialisation() const;
 
 protected:
 	virtual void				threadedFunction();
 	bool						DecodeNextFrame();
+	void						PushInitFrame();
 
 public:
 	TDecodeParams				mParams;
+	TDecodeState::Type			mState;
 
 protected:
 	ofMutexT<TFrameMeta>		mDecodeFormat;
-	bool						mFinishedDecoding;
 	TFramePool&					mFramePool;
 	ofPtr<TDecoder>				mDecoder;
 	TFrameBuffer&				mFrameBuffer;

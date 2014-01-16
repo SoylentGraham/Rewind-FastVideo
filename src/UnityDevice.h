@@ -18,7 +18,7 @@
 #if defined(ENABLE_OPENGL)
 
 	#if defined(TARGET_WINDOWS)
-//#define GLEW_STATIC	//	need to add to pre-processor if we need this
+#define GLEW_STATIC	//	need to add to pre-processor if we need this
 		#include <gl/glew.h>
 //		#include <gl/GL.h>	//	included by glew
 		#pragma comment(lib,"opengl32.lib")
