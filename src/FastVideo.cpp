@@ -234,7 +234,10 @@ extern "C" void EXPORT_API SetDebugLogFunction(Unity::TDebugLogFunc pFunc)
 	FastVideo.mDebugFunc = pFunc;
 #endif
 	
-	Unity::ConsoleLog("FastVideo debug-log initialised okay");
+	BufferString<1000> Debug;
+	Debug << "FastVideo debug-log initialised okay - ";
+	Debug << "Built on " << __DATE__ << " " << __TIME__;
+	Unity::ConsoleLog( Debug );
 }
 
 // Prints a string
