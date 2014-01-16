@@ -103,6 +103,7 @@ private:
 	Unity::TTexture					mTargetTexture;
 	SoyTime							mTargetTextureFrame;	//	frame of the contents of target texture
 	ofPtr<TDecodeThread>			mDecoderThread;
+	ofMutexT<Array<ofPtr<TDecodeThread>>>		mDeadDecoderThreads;	//	waiting to kill these off when we can
 	ofPtr<TFastTextureUploadThread>	mUploadThread;
 };
 

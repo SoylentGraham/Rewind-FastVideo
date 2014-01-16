@@ -93,7 +93,101 @@ void TFastTexture::DeleteDecoderThread()
 {
 	if ( mDecoderThread )
 	{
-		mDecoderThread->waitForThread();
+		mDecoderThread->stopThread();
+//#error violation reading location 0x00003FFF.
+		/*
+		~TDecodeThread WaitForThread
+~TDecodeThread finished
+TDecodeThread::~TDecodeThread took 1ms to execute
+FastVideo: TDecodeThread::~TDecodeThread took 1ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+DX::Map copy took 14ms to execute
+TFastTexture::UpdateFrameTexture took 14ms to execute
+FastVideo: DX::Map copy took 14ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+TDecodeThread::TDecodeThread
+FastVideo: TFastTexture::UpdateFrameTexture took 14ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+Set frametime: T000149016
+TDecodeThread::PushInitFrame took 200ms to execute
+TDecodeThread - starting thread
+TDecodeThread - starting thread OK
+TDecodeThread::Init took 207ms to execute
+Unknown error: -5
+TDecoder_Libav::Init took 3ms to execute
+The thread 0x19c8 has exited with code 0 (0x0).
+FastVideo: TDecodeThread::PushInitFrame took 200ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+DX::Map copy took 15ms to execute
+FastVideo: TDecodeThread::Init took 207ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+FastVideo: Unknown error: -5
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+FastVideo: TDecoder_Libav::Init took 3ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+TFastTexture::UpdateFrameTexture took 29ms to execute
+FastVideo: DX::Map copy took 15ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+FastVideo: TFastTexture::UpdateFrameTexture took 29ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+Rendering 237ms behind
+FastVideo: Rendering 237ms behind
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+Pushing Debug ERROR Frame; TFastTexture::OnDecoderInitFailed
+Set frametime: T000000000
+FastTxtw FirstFrame
+Set frametime: T000000000
+~TDecodeThread release frames
+~TDecodeThread WaitForThread
+~TDecodeThread finished
+TDecodeThread::~TDecodeThread took 1ms to execute
+First-chance exception at 0x7711DFE4 (ntdll.dll) in Unity.exe: 0xC0000005: Access violation reading location 0x00003FFF.
+Unhandled exception at 0x7711DFE4 (ntdll.dll) in Unity.exe: 0xC0000005: Access violation reading location 0x00003FFF.
+
+
+
+
+		 	ntdll.dll!7711dfe4()	Unknown
+ 	[Frames below may be incorrect and/or missing, no symbols loaded for ntdll.dll]	
+ 	[External Code]	
+ 	avutil-52.dll!66b932c3()	Unknown
+ 	avformat-55.dll!61006130()	Unknown
+ 	[External Code]	
+ 	FastVideo.dll!TDecoder_Libav::~TDecoder_Libav() Line 496	C++
+ 	[External Code]	
+ 	FastVideo.dll!TDecodeThread::~TDecodeThread() Line 186	C++
+ 	[External Code]	
+ 	FastVideo.dll!Array<ofPtr<TDecodeThread>,prcore::Heap>::PushBack(const ofPtr<TDecodeThread> & item) Line 302	C++
+>	FastVideo.dll!TFastTexture::DeleteDecoderThread() Line 99	C++
+ 	FastVideo.dll!TFastTexture::SetVideo(const std::basic_string<wchar_t,std::char_traits<wchar_t>,std::allocator<wchar_t> > & Filename) Line 192	C++
+ 	FastVideo.dll!TFastTexture::Update() Line 317	C++
+ 	FastVideo.dll!TFastTexture::threadedFunction() Line 342	C++
+ 	FastVideo.dll!ofThread::threadFunc(void * args) Line 140	C++
+
+	*/
+		mDeadDecoderThreads.lock();
+		mDeadDecoderThreads.PushBack( mDecoderThread );
+		mDeadDecoderThreads.unlock();
 		mDecoderThread.reset();
 	}
 }
@@ -313,6 +407,19 @@ void TFastTexture::Update()
 				SetVideo( Filename );
 			}
 		}
+	}
+
+	//	kill old decoder threads (could stall here, but shouldn't be too noticable...)
+	//	one at a time, not a big deal to delay it
+	mDeadDecoderThreads.lock();
+	ofPtr<TDecodeThread> pThread;
+	if ( !mDeadDecoderThreads.IsEmpty() )
+		pThread = mDeadDecoderThreads.PopBack();
+	mDeadDecoderThreads.unlock();
+	if ( pThread )
+	{
+		pThread->waitForThread();
+		pThread.reset();
 	}
 }
 
