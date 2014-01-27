@@ -829,6 +829,17 @@ bool TDecoder_Libav::Init(const TDecodeParams& Params)
 	mCodec->extradata = reinterpret_cast<uint8_t*>(mCodecContextExtraData.data());
 	mCodec->extradata_size = mCodecContextExtraData.size();
 
+
+#pragma message("todo: re-launch many times to get this error")
+	/*
+~TDecodeThread release frames
+~TDecodeThread WaitForThread
+~TDecodeThread finished
+TDecodeThread::~TDecodeThread took 3ms to execute
+Insufficient thread locking around avcodec_open/close()
+
+No lock manager is set, please see av_lockmgr_register()
+*/
 	// initializing the structure by opening the codec
 	err = avcodec_open2(mCodec.get(), codec, nullptr);
 	if ( err < 0)

@@ -22,8 +22,17 @@ TFastTexture::TFastTexture(SoyRef Ref,TFramePool& FramePool) :
 	mFramePool				( FramePool ),
 	mState					( TFastVideoState::FirstFrame ),
 	mLooping				( true ),
-	SoyThread				( "TFastTexture" )
+	SoyThread				( "TFastTexture" ),
+	mDecoderThread			( nullptr )
 {
+	if ( !mDecoderThread.tryLock() )
+	{
+		assert(false);
+	}
+	else
+	{
+		mDecoderThread.unlock();
+	}
 	startThread( true, true );
 }
 
@@ -38,6 +47,7 @@ TFastTexture::~TFastTexture()
 	DeleteTargetTexture();
 	DeleteUploadThread();
 	DeleteDecoderThread();
+	WaitForAllDeadDecoderThreads();
 }
 
 TUnityDevice& TFastTexture::GetDevice()
@@ -91,9 +101,11 @@ void TFastTexture::DeleteTargetTexture()
 
 void TFastTexture::DeleteDecoderThread()
 {
-	if ( mDecoderThread )
+	//ofMutex::ScopedLock lock( mDecoderThread );
+	auto& DecoderThread = mDecoderThread.Get();
+	if ( DecoderThread )
 	{
-		mDecoderThread->stopThread();
+		DecoderThread->stopThread();
 //#error violation reading location 0x00003FFF.
 		/*
 		~TDecodeThread WaitForThread
@@ -186,9 +198,9 @@ Unhandled exception at 0x7711DFE4 (ntdll.dll) in Unity.exe: 0xC0000005: Access v
 
 	*/
 		mDeadDecoderThreads.lock();
-		mDeadDecoderThreads.PushBack( mDecoderThread );
+		mDeadDecoderThreads.PushBack( DecoderThread );
 		mDeadDecoderThreads.unlock();
-		mDecoderThread.reset();
+		DecoderThread = nullptr;
 	}
 }
 
@@ -234,10 +246,12 @@ void TFastTexture::DeleteUploadThread()
 		mUploadThread.reset();
 	}
 
-	if ( mDecoderThread )
+	//mDecoderThread.lock();
+	if ( mDecoderThread.Get() )
 	{
-		mDecoderThread->SetDecodedFrameMeta( TFrameMeta() );
-	}	
+		mDecoderThread.Get()->SetDecodedFrameMeta( TFrameMeta() );
+	}
+	//mDecoderThread.lock();
 }
 
 
@@ -283,10 +297,12 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 	TDecodeParams Params;
 	Params.mFilename = Filename;
 	Params.mTargetTextureMeta = Device.GetTextureMeta( mTargetTexture );
-	mDecoderThread = ofPtr<TDecodeThread>( new TDecodeThread( Params, mFrameBuffer, mFramePool ) );
+	
+	ofMutex::ScopedLock lock(mDecoderThread);	//	unneccesary?
+	mDecoderThread.Get() = new TDecodeThread( Params, mFrameBuffer, mFramePool );
 
 	//	do initial init, will verify filename, dimensions, etc
-	if ( !mDecoderThread->Init() )
+	if ( !mDecoderThread.Get()->Init() )
 	{
 		DeleteDecoderThread();
 		OnDecoderInitFailed();
@@ -298,7 +314,7 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 	if ( mTargetTexture )
 	{
 		TFrameMeta TextureFormat = Device.GetTextureMeta( mTargetTexture );
-		mDecoderThread->SetDecodedFrameMeta( TextureFormat );
+		mDecoderThread.Get()->SetDecodedFrameMeta( TextureFormat );
 	}
 
 	return true;
@@ -394,33 +410,53 @@ bool TFastTexture::UpdateFrameTexture(Unity::TDynamicTexture Texture,SoyTime& Fr
 
 void TFastTexture::Update()
 {
-	if ( mDecoderThread )
+	//mDecoderThread.lock();
+	auto& DecoderThread = mDecoderThread.Get();
+	if ( DecoderThread )
 	{
-		if ( mDecoderThread->HasFailedInitialisation() )
+		if ( DecoderThread->HasFailedInitialisation() )
 			OnDecoderInitFailed();
 
-		if ( mDecoderThread->HasFinishedDecoding() )
+		if ( DecoderThread->HasFinishedDecoding() )
 		{
 			if ( this->mLooping )
 			{
-				auto Filename = mDecoderThread->mParams.mFilename;
+				auto Filename = DecoderThread->mParams.mFilename;
 				SetVideo( Filename );
 			}
 		}
 	}
+	//mDecoderThread.unlock();
 
 	//	kill old decoder threads (could stall here, but shouldn't be too noticable...)
 	//	one at a time, not a big deal to delay it
+	WaitForLastDeadDecoderThread();
+
+}
+
+void TFastTexture::WaitForAllDeadDecoderThreads()
+{
+	while ( WaitForLastDeadDecoderThread() )
+	{
+	}
+}
+
+
+bool TFastTexture::WaitForLastDeadDecoderThread()
+{
 	mDeadDecoderThreads.lock();
-	ofPtr<TDecodeThread> pThread;
+	TDecodeThread* pThread = nullptr;
 	if ( !mDeadDecoderThreads.IsEmpty() )
 		pThread = mDeadDecoderThreads.PopBack();
 	mDeadDecoderThreads.unlock();
-	if ( pThread )
-	{
-		pThread->waitForThread();
-		pThread.reset();
-	}
+	
+	if ( !pThread )
+		return false;
+	
+	pThread->waitForThread();
+	delete pThread;
+	pThread = nullptr;
+	return true;
 }
 
 void TFastTexture::threadedFunction()
@@ -524,9 +560,10 @@ void TFastTexture::UpdateFrameTime()
 	ofMutex::ScopedLock lockb( mFrame );
 	mFrame.Get() = SoyTime( mFrame.GetTime() + Step );
 
-	if ( mDecoderThread )
+	//ofMutex::ScopedLock lockdecoderthread( mDecoderThread );
+	if ( mDecoderThread.Get() )
 	{
-		mDecoderThread->SetMinTimestamp( mFrame );
+		mDecoderThread.Get()->SetMinTimestamp( mFrame );
 	}
 	/*
 	BufferString<100> Debug;
@@ -545,9 +582,10 @@ void TFastTexture::SetFrameTime(SoyTime Frame)
 	mFrame.Get() = Frame;
 	mLastUpdateTime.Get() = SoyTime(true);
 
-	if ( mDecoderThread )
+	//ofMutex::ScopedLock lockc( mDecoderThread );
+	if ( mDecoderThread.Get() )
 	{
-		mDecoderThread->SetMinTimestamp( mFrame );
+		mDecoderThread.Get()->SetMinTimestamp( mFrame );
 	}
 
 //	mDynamicTextureFrame = Frame;	//	-1?
