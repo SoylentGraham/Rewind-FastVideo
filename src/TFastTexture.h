@@ -39,7 +39,7 @@ public:
 	TFastTexture&			mParent;
 	TUnityDevice&			mDevice;
 
-	ofMutex					mDynamicTextureLock;
+	ofMutexTimed			mDynamicTextureLock;
 	Unity::TDynamicTexture	mDynamicTexture;
 	SoyTime					mDynamicTextureFrame;	//	frame in current dynamic texture
 	bool					mDynamicTextureChanged;	//	locked via mDynamicTextureLock

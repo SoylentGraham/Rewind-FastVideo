@@ -613,7 +613,7 @@ void TFastTextureUploadThread::threadedFunction()
 void TFastTextureUploadThread::Update()
 {
 	{
-		ofMutex::ScopedLock Lock( mDynamicTextureLock );
+		ofMutexTimed::ScopedLock Lock( mDynamicTextureLock );
 		//	last one hasnt been used yet
 		if ( mDynamicTextureChanged )
 			return;
@@ -631,7 +631,12 @@ void TFastTextureUploadThread::Update()
 bool TFastTextureUploadThread::CopyToTarget(Unity::TTexture TargetTexture,SoyTime& TargetTextureFrame)
 {
 	//	copy latest dynamic texture
-	ofMutex::ScopedLock Lock( mDynamicTextureLock );
+	ofMutexTimed::ScopedLockTimed Lock( mDynamicTextureLock, 2 );
+	if ( !Lock.IsLocked() )
+	{
+		Unity::Debug("mDynamicTextureLock failed to lock");
+		return false;
+	}
 		
 	//	dont' have a new texture yet
 	if ( !mDynamicTextureChanged )
@@ -687,7 +692,7 @@ bool TFastTextureUploadThread::CreateDynamicTexture()
 	auto TargetTextureMeta = Device.GetTextureMeta( mTargetTexture );
 
 	//	if dimensions are different, delete old one
-	ofMutex::ScopedLock lock( mDynamicTextureLock );
+	ofMutexTimed::ScopedLock lock( mDynamicTextureLock );
 	if ( mDynamicTexture )
 	{
 		auto CurrentTextureMeta = Device.GetTextureMeta( mDynamicTexture );
@@ -745,14 +750,14 @@ bool TFastTextureUploadThread::CreateDynamicTexture()
 
 void TFastTextureUploadThread::DeleteDynamicTexture()
 {
-	ofMutex::ScopedLock lock( mDynamicTextureLock );
+	ofMutexTimed::ScopedLock lock( mDynamicTextureLock );
     auto& Device = GetDevice();
 	Device.DeleteTexture( mDynamicTexture );
 }
 
 bool TFastTextureUploadThread::IsValid()
 {
-	ofMutex::ScopedLock lock( mDynamicTextureLock );
+	ofMutexTimed::ScopedLock lock( mDynamicTextureLock );
     return mDynamicTexture.IsValid();
 }
 
