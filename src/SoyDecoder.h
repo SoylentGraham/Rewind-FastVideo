@@ -171,6 +171,7 @@ public:
 private:
 	bool			DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& Packet,std::shared_ptr<AVFrame>& Frame,int& DataOffset);
 	static void		LogCallback(void *ptr, int level, const char *fmt, va_list vargs);
+	static int		LockManagerCallback(void** ppMutex,enum AVLockOp op);
 
 #if defined(ENABLE_DVXA)
 	bool			InitDxvaContext();

@@ -696,6 +696,8 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 #if defined(ENABLE_DECODER_LIBAV)
 void TDecoder_Libav::LogCallback(void *ptr, int level, const char *fmt, va_list vargs)
 {
+	//	gr: seems to be a lot of problems with this, malformed fmt's, nulls??
+	/*
 	const char *module = NULL;
 
 	if (ptr)
@@ -710,6 +712,60 @@ void TDecoder_Libav::LogCallback(void *ptr, int level, const char *fmt, va_list 
 	//vsnprintf_s(message, sizeof(message), fmt, vargs);
 	//Unity::DebugDecoder(message);
 	Unity::DebugDecoder(fmt);
+	*/
+}
+#endif
+
+#if defined(ENABLE_DECODER_LIBAV)
+//	http://stackoverflow.com/questions/13888915/thread-safety-of-libav-ffmpeg
+int TDecoder_Libav::LockManagerCallback(void** ppMutex,enum AVLockOp op)
+{
+	if ( !ppMutex )
+		return -1;
+
+	switch ( op )
+	{
+		case AV_LOCK_CREATE:
+		{
+			//	gr: might be uninitlised? in which case we ditch this assert
+			assert( *ppMutex == nullptr );
+			ofMutex* m = new ofMutex();
+			*ppMutex = static_cast<void*>(m);
+		}
+		break;
+
+		case AV_LOCK_OBTAIN:
+		{
+			ofMutex* m = static_cast<ofMutex*>(*ppMutex);
+			if ( !m )
+				return -1;	
+			m->lock();
+		}
+		break;
+
+		case AV_LOCK_RELEASE:
+		{
+			ofMutex* m = static_cast<ofMutex*>(*ppMutex);
+			if ( !m )
+				return -1;	
+			m->unlock();
+		}
+		break;
+
+		case AV_LOCK_DESTROY:
+		{
+			ofMutex* m = static_cast<ofMutex*>(*ppMutex);
+			if ( !m )
+				return -1;
+			delete m;
+			*ppMutex = nullptr;
+		}
+		break;
+
+		default:
+			break;
+	}
+	return 0;
 }
 #endif
 
@@ -733,7 +789,8 @@ bool TDecoder_Libav::Init(const TDecodeParams& Params)
 
 	//	init lib av
 	av_register_all();
-	av_log_set_callback(&TDecoder_Libav::LogCallback);
+	av_lockmgr_register( &TDecoder_Libav::LockManagerCallback );
+	av_log_set_callback( &TDecoder_Libav::LogCallback );
 	avformat_network_init();
 
 	mContext = std::shared_ptr<AVFormatContext>(avformat_alloc_context(), &avformat_free_context);
