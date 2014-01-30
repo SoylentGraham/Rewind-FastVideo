@@ -48,6 +48,7 @@ TFastVideo& Unity::GetFastVideo()
 
 TFastVideo::TFastVideo() :
 	mDebugFunc			( nullptr ),
+	mOnErrorFunc		( nullptr ),
 	mFramePool			( DEFAULT_MAX_POOL_SIZE ),
 	mNextInstanceRef	( "FastTxture" )
 {
@@ -256,8 +257,6 @@ void Unity::ConsoleLog(const char* str)
 #endif
 }
 
-
-
 #if defined(BUFFER_DEBUG_LOG)
 void TFastVideo::BufferDebugLog(const char* String,const char* Prefix)
 {
@@ -304,6 +303,27 @@ void TFastVideo::DebugLog(const char* String)
 
 
 
+extern "C" void EXPORT_API SetOnErrorFunction(Unity::TOnErrorFunc pFunc)
+{
+	auto& FastVideo = Unity::GetFastVideo();
+	
+	FastVideo.mOnErrorFunc = pFunc;
+}
+
+// Prints a string
+void Unity::OnError(TFastTexture& Instance,FastVideoError Error)
+{
+	auto& FastVideo = Unity::GetFastVideo();
+
+	if ( FastVideo.mOnErrorFunc )
+	{
+		ulong InstanceId = Instance.GetRef().GetInt64();
+		ulong ErrorId = static_cast<ulong>( Error );
+		(*FastVideo.mOnErrorFunc)( InstanceId, ErrorId );
+	}
+}
+
+
 
 
 extern "C" void EXPORT_API UnitySetGraphicsDevice(void* device, int deviceType, int eventType)
@@ -335,7 +355,7 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID)
 {
 	switch ( eventID )
 	{
-		case Unity::TRenderEvent::OnPostRender:
+		case UnityEvent::OnPostRender:
 			Unity::GetFastVideo().OnPostRender();
 			break;
 

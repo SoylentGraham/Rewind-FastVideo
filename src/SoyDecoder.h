@@ -131,10 +131,27 @@ namespace TDecodeState
 		NoThread = 0,
 		Constructed,
 		Initialising,
-		FailedInitialisation,
+		FailedInit_Unknown,
+		FailedInit_FileNotFound,
+		FailedInit_CodecError,
 		Decoding,
 		FinishedDecoding,
 	};
+
+	FastVideoError	GetFastVideoError(Type State);
+};
+
+namespace TDecodeInitResult
+{
+	enum Type
+	{
+		Success			= 0,
+		UnknownError,
+		FileNotFound,
+		CodecError,
+	};
+
+	FastVideoError	GetFastVideoError(Type Result);
 };
 
 class TDecoder
@@ -142,11 +159,11 @@ class TDecoder
 public:
 	virtual ~TDecoder()	{}
 
-	virtual bool		Init(const TDecodeParams& Params)=0;
-	TVideoMeta			GetVideoMeta()		{	return mVideoMeta;	}
-	TFrameMeta			GetFrameMeta()		{	return GetVideoMeta().mFrameMeta;	}
-	virtual bool		PeekNextFrame(TFrameMeta& FrameMeta)=0;
-	virtual bool		DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain)=0;
+	virtual TDecodeInitResult::Type	Init(const TDecodeParams& Params)=0;
+	TVideoMeta						GetVideoMeta()		{	return mVideoMeta;	}
+	TFrameMeta						GetFrameMeta()		{	return GetVideoMeta().mFrameMeta;	}
+	virtual bool					PeekNextFrame(TFrameMeta& FrameMeta)=0;
+	virtual bool					DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain)=0;
 
 public:
 	TVideoMeta			mVideoMeta;
@@ -164,9 +181,9 @@ public:
 	TDecoder_Libav();
 	virtual ~TDecoder_Libav();
 	
-	virtual bool	Init(const TDecodeParams& Params);
-	bool			PeekNextFrame(TFrameMeta& FrameMeta);
-	bool			DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
+	virtual TDecodeInitResult::Type	Init(const TDecodeParams& Params);
+	bool							PeekNextFrame(TFrameMeta& FrameMeta);
+	bool							DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
 	
 private:
 	bool			DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& Packet,std::shared_ptr<AVFrame>& Frame,int& DataOffset);
@@ -201,9 +218,9 @@ public:
 	TDecoder_Qtkit();
 	virtual ~TDecoder_Qtkit();
 	
-	virtual bool	Init(const TDecodeParams& Params);
-	bool			PeekNextFrame(TFrameMeta& FrameMeta);
-	bool			DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
+	virtual TDecodeInitResult::Type	Init(const TDecodeParams& Params);
+	bool							PeekNextFrame(TFrameMeta& FrameMeta);
+	bool							DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
 	
 public:
 #ifdef __OBJC__
@@ -223,9 +240,9 @@ class TDecoder_Test : public TDecoder
 public:
 	TDecoder_Test();
 	
-	virtual bool	Init(const TDecodeParams& Params);
-	virtual bool	PeekNextFrame(TFrameMeta& FrameMeta);
-	virtual bool	DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
+	virtual TDecodeInitResult::Type	Init(const TDecodeParams& Params);
+	virtual bool					PeekNextFrame(TFrameMeta& FrameMeta);
+	virtual bool					DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
 	
 public:
 	BufferArray<TColour,10>	mColours;
@@ -243,7 +260,7 @@ public:
 	TDecodeThread(TDecodeParams& Params,TFrameBuffer& FrameBuffer,TFramePool& FramePool);
 	~TDecodeThread();
 
-	bool						Init();					//	make decoder and start thread
+	TDecodeInitResult::Type		Init();					//	make decoder and start thread
 	TFrameMeta					GetVideoFrameMeta()		{	return mDecoder ? mDecoder->GetFrameMeta() : TFrameMeta();	}
 	TFrameMeta					GetDecodedFrameMeta();
 	void						SetDecodedFrameMeta(TFrameMeta Format);

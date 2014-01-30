@@ -11,11 +11,22 @@
 	#define ENABLE_OPENGL
 #endif
 
+
+
 #if defined(ENABLE_DX11)
+	//	something is including d3d10.h (from dx sdk) and some errors have different export types from winerror.h (winsdk)
+	#pragma warning( push )
+	#pragma warning( disable : 4005 )
+
 	#include <d3d11.h>
+
+	#pragma warning( pop )
 #endif
 
+
+
 #if defined(ENABLE_OPENGL)
+
 
 	#if defined(TARGET_WINDOWS)
 #define GLEW_STATIC	//	need to add to pre-processor if we need this
@@ -32,6 +43,7 @@
 #define GL_INVALID_TEXTURE_NAME	0u
 #define GL_INVALID_BUFFER_NAME	0u
 #endif
+
 
 
 class TUnityDevice;
@@ -98,13 +110,6 @@ public:
 //	gr: hardcoded Unity stuff
 namespace Unity
 {
-	namespace TRenderEvent
-	{
-		enum Type
-		{
-			OnPostRender	= 0,
-		};
-	};
 
 	namespace TGfxDevice
 	{

@@ -101,7 +101,7 @@ void TFastTexture::DeleteTargetTexture()
 
 void TFastTexture::DeleteDecoderThread()
 {
-	//ofMutex::ScopedLock lock( mDecoderThread );
+	ofMutex::ScopedLock lock( mDecoderThread );
 	auto& DecoderThread = mDecoderThread.Get();
 	if ( DecoderThread )
 	{
@@ -302,10 +302,13 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 	mDecoderThread.Get() = new TDecodeThread( Params, mFrameBuffer, mFramePool );
 
 	//	do initial init, will verify filename, dimensions, etc
-	if ( !mDecoderThread.Get()->Init() )
+	TDecodeInitResult::Type InitResult = mDecoderThread.Get()->Init();
+	if ( InitResult != TDecodeInitResult::Success )
 	{
 		DeleteDecoderThread();
-		OnDecoderInitFailed();
+
+		auto Error = TDecodeInitResult::GetFastVideoError( InitResult );
+		OnDecoderInitFailed( Error );
 		return false;
 	}
 
@@ -320,7 +323,7 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 	return true;
 }
 
-void TFastTexture::OnDecoderInitFailed()
+void TFastTexture::OnDecoderInitFailed(FastVideoError Error)
 {
 #if defined(ENABLE_FAILED_DECODER_INIT_FRAME)
 	//	push a red "BAD" frame
@@ -341,7 +344,11 @@ void TFastTexture::OnDecoderInitFailed()
 		Unity::DebugError(Debug);
 	}
 #endif
+
+	//	report error
+	Unity::OnError( *this, Error );
 }
+
 bool TFastTexture::UpdateFrameTexture(Unity::TTexture Texture,SoyTime& FrameCopied)
 {
 	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
@@ -415,7 +422,10 @@ void TFastTexture::Update()
 	if ( DecoderThread )
 	{
 		if ( DecoderThread->HasFailedInitialisation() )
-			OnDecoderInitFailed();
+		{
+			auto Error = TDecodeState::GetFastVideoError( DecoderThread->mState );
+			OnDecoderInitFailed(Error);
+		}
 
 		if ( DecoderThread->HasFinishedDecoding() )
 		{

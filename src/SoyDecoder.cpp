@@ -4,6 +4,39 @@
 
 
 
+FastVideoError TDecodeInitResult::GetFastVideoError(TDecodeInitResult::Type Result)
+{
+	switch ( Result )
+	{
+	case TDecodeInitResult::UnknownError:	return FastVideoError::DecoderError;
+	case TDecodeInitResult::FileNotFound:	return FastVideoError::FileNotFound;
+	case TDecodeInitResult::CodecError:		return FastVideoError::CodecError;
+
+	case TDecodeInitResult::Success:	
+	default:
+		//	not an error!
+		assert( false );
+		return FastVideoError::UknownError;
+	}
+}
+
+
+FastVideoError TDecodeState::GetFastVideoError(TDecodeState::Type State)
+{
+	switch ( State )
+	{
+	case TDecodeState::FailedInit_Unknown:		return FastVideoError::DecoderError;
+	case TDecodeState::FailedInit_FileNotFound:	return FastVideoError::FileNotFound;
+	case TDecodeState::FailedInit_CodecError:	return FastVideoError::CodecError;
+
+	default:
+		//	not an error!
+		assert( false );
+		return FastVideoError::UknownError;
+	}
+}
+
+
 
 #if defined(ENABLE_DECODER_TEST)
 TDecoder_Test::TDecoder_Test() :
@@ -22,14 +55,13 @@ TDecoder_Test::TDecoder_Test() :
 
 
 #if defined(ENABLE_DECODER_TEST)
-bool TDecoder_Test::Init(const TDecodeParams& Params)
+TDecodeInitResult::Type TDecoder_Test::Init(const TDecodeParams& Params)
 {
 	//	debug test to see if a big init pause locks up unity
 	Sleep(4000);
 
 	//	delayed failure test
-	return false;
-	return true;
+	return TDecodeInitResult::UnknownError;
 }
 #endif
 
@@ -186,7 +218,7 @@ TDecodeThread::~TDecodeThread()
 }
 
 
-bool TDecodeThread::Init()
+TDecodeInitResult::Type TDecodeThread::Init()
 {
 	Unity::TScopeTimerWarning Timer(__FUNCTION__, 4);
 
@@ -214,7 +246,7 @@ bool TDecodeThread::Init()
 	if ( !mDecoder )
 	{
 		mState = TDecodeState::NoThread;
-		return false;
+		return TDecodeInitResult::UnknownError;
 	}
 	mState = TDecodeState::Constructed;
 
@@ -224,7 +256,7 @@ bool TDecodeThread::Init()
 	Unity::Debug("TDecodeThread - starting thread");
 	startThread( true, true );
 	Unity::Debug("TDecodeThread - starting thread OK");
-	return true;
+	return TDecodeInitResult::Success;
 }
 
 bool TDecodeThread::HasFinishedDecoding() const
@@ -232,7 +264,9 @@ bool TDecodeThread::HasFinishedDecoding() const
 	switch ( mState )
 	{
 	case TDecodeState::FinishedDecoding:
-	case TDecodeState::FailedInitialisation:
+	case TDecodeState::FailedInit_FileNotFound:
+	case TDecodeState::FailedInit_Unknown:
+	case TDecodeState::FailedInit_CodecError:
 		return true;
 	}
 	return false;
@@ -243,7 +277,9 @@ bool TDecodeThread::HasFailedInitialisation() const
 {
 	switch ( mState )
 	{
-	case TDecodeState::FailedInitialisation:
+	case TDecodeState::FailedInit_FileNotFound:
+	case TDecodeState::FailedInit_Unknown:
+	case TDecodeState::FailedInit_CodecError:
 		return true;
 	}
 	return false;
@@ -330,11 +366,27 @@ TFramePixels* TFrameBuffer::PopFrame(SoyTime Timestamp)
 void TDecodeThread::threadedFunction()
 {
 	assert( mState == TDecodeState::Constructed );
+	
 	//	init
-	if ( mDecoder && mDecoder->Init( mParams ) )
-		mState = TDecodeState::Decoding;
-	else
-		mState = TDecodeState::FailedInitialisation;
+	TDecodeInitResult::Type InitResult = TDecodeInitResult::UnknownError;
+	if ( mDecoder )
+	{
+		InitResult = mDecoder->Init( mParams );
+	}
+
+	//	set state
+	switch ( InitResult )
+	{
+	case TDecodeInitResult::Success:		mState = TDecodeState::Decoding;				break;
+	case TDecodeInitResult::FileNotFound:	mState = TDecodeState::FailedInit_FileNotFound;	break;
+	case TDecodeInitResult::CodecError:		mState = TDecodeState::FailedInit_CodecError;	break;
+
+	case TDecodeInitResult::UnknownError:
+	default:
+		mState = TDecodeState::FailedInit_Unknown;
+		break;
+	}
+
 
 	while ( isThreadRunning() && mState == TDecodeState::Decoding )
 	{
@@ -771,7 +823,7 @@ int TDecoder_Libav::LockManagerCallback(void** ppMutex,enum AVLockOp op)
 
 
 #if defined(ENABLE_DECODER_LIBAV)
-bool TDecoder_Libav::Init(const TDecodeParams& Params)
+TDecodeInitResult::Type TDecoder_Libav::Init(const TDecodeParams& Params)
 {
 	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
 
@@ -784,7 +836,7 @@ bool TDecoder_Libav::Init(const TDecodeParams& Params)
 		BufferString<1000> Debug;
 		Debug << Filenamea << " doesn't exist";
 		Unity::DebugError( Debug );
-		return false;
+		return TDecodeInitResult::FileNotFound;
 	}
 
 	//	init lib av
@@ -799,7 +851,7 @@ bool TDecoder_Libav::Init(const TDecodeParams& Params)
 	if ( err != 0 )
 	{
 		Unity::DebugError( GetAVError(err) );
-		return false;
+		return TDecodeInitResult::CodecError;
 	}
 
 	//	get streams 
@@ -807,7 +859,7 @@ bool TDecoder_Libav::Init(const TDecodeParams& Params)
 	if ( err < 0)
 	{
 		Unity::DebugError( GetAVError(err) );
-		return false;
+		return TDecodeInitResult::CodecError;
 	}
 
 	assert( !mVideoStream );
@@ -823,7 +875,7 @@ bool TDecoder_Libav::Init(const TDecodeParams& Params)
 	if ( !mVideoStream )
 	{
 		Unity::DebugError("failed to find a video stream");
-		return false;
+		return TDecodeInitResult::CodecError;
 	}
 	
 	auto codecid = mVideoStream->codec->codec_id;
@@ -858,7 +910,7 @@ bool TDecoder_Libav::Init(const TDecodeParams& Params)
 	if ( codec == nullptr )
 	{
 		Unity::DebugError("Failed to find codec for video");
-		return false;
+		return TDecodeInitResult::CodecError;
 	}
 
 	// allocating a structure
@@ -902,7 +954,7 @@ No lock manager is set, please see av_lockmgr_register()
 	if ( err < 0)
 	{
 		Unity::DebugError( GetAVError(err) );
-		return false;
+		return TDecodeInitResult::CodecError;
 	}
 
 	//	alloc our buffer-frame
@@ -914,8 +966,8 @@ No lock manager is set, please see av_lockmgr_register()
 	//	peek at first frame to get video frame dimensions & inital test
 	mVideoMeta.mFramesPerSecond = 1.f;
 	if ( !PeekNextFrame( mVideoMeta.mFrameMeta ) )
-		return false;
+		return TDecodeInitResult::UnknownError;
 
-	return true;
+	return TDecodeInitResult::Success;
 }
 #endif
