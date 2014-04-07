@@ -143,7 +143,7 @@ Unity::TDynamicTexture TUnityDevice_Dx11::AllocDynamicTexture(TFrameMeta FrameMe
 	auto Result = mDevice->CreateTexture2D( &Desc, NULL, &pTexture );
 	if ( Result != S_OK )
 	{
-		Unity::DebugLog("Failed to create dynamic texture");
+		Unity::DebugError("Failed to create dynamic texture");
 	}
 	
 	//	gr: need to manage textures on device
@@ -262,7 +262,7 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture TextureU,const TFramePixels&
 	Device11.GetImmediateContext( &ctx.mObject );
 	if ( !ctx )
 	{
-		Unity::DebugLog("Failed to get device context");
+		Unity::DebugError("Failed to get device context");
 		return false;
 	}
 
@@ -274,9 +274,25 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture TextureU,const TFramePixels&
 		Texture->GetDesc(&SrcDesc);
 
 		D3D11_MAPPED_SUBRESOURCE resource;
+		ZeroMemory( &resource, sizeof(resource) );
 		int SubResource = 0;
-		int flags = Blocking ? D3D11_MAP_FLAG_DO_NOT_WAIT : 0x0;
-		HRESULT hr = ctx->Map( Texture, SubResource, D3D11_MAP_WRITE_DISCARD, flags, &resource);
+		//bool IsDefferedContext = (ctx->GetType() == D3D11_DEVICE_CONTEXT_DEFERRED);
+		bool IsDefferedContext = true;
+
+		int MapFlags;
+		D3D11_MAP MapMode;
+		if ( IsDefferedContext )
+		{
+			MapFlags = 0x0;
+			MapMode = D3D11_MAP_WRITE_DISCARD;
+		}
+		else
+		{
+			MapFlags = !Blocking ? D3D11_MAP_FLAG_DO_NOT_WAIT : 0x0;
+			MapMode = D3D11_MAP_WRITE;
+		}
+
+		HRESULT hr = ctx->Map(Texture, SubResource, MapMode, MapFlags, &resource);
 
 		//	specified do not block, and GPU is using the texture
 		if ( !Blocking && hr == DXGI_ERROR_WAS_STILL_DRAWING )
@@ -287,7 +303,7 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture TextureU,const TFramePixels&
 		{
 			BufferString<1000> Debug;
 			Debug << "Failed to get Map() for dynamic texture(" << SrcDesc.Width << "," << SrcDesc.Height << "); Error; " << hr;
-			Unity::DebugLog( Debug );
+			Unity::DebugError(Debug);
 			return false;
 		}
 
@@ -296,7 +312,7 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture TextureU,const TFramePixels&
 		{
 			BufferString<1000> Debug;
 			Debug << "Warning: resource/texture data size mismatch; " << Frame.GetDataSize() << " (frame) vs " << ResourceDataSize << " (resource)";
-			Unity::DebugLog( Debug );
+			Unity::DebugError(Debug);
 			ResourceDataSize = ofMin( ResourceDataSize, Frame.GetDataSize() );
 		}
 
@@ -336,7 +352,7 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture DstTextureU,Unity::TDynamicT
 	Device11.GetImmediateContext( &ctx.mObject );
 	if ( !ctx )
 	{
-		Unity::DebugLog("Failed to get device context");
+		Unity::DebugError("Failed to get device context");
 		return false;
 	}	
 	
@@ -369,7 +385,7 @@ bool Unity::TTexture_Opengl::Bind(TUnityDevice_Opengl& Device)
 	{
 		BufferString<200> Debug;
 		Debug << "Bound invalid texture name [" << TextureName << "]";
-		Unity::DebugLog( Debug );
+		Unity::DebugError(Debug);
 		return false;
 	}
 
@@ -404,7 +420,7 @@ Unity::TTexture TUnityDevice_Opengl::AllocTexture(TFrameMeta FrameMeta)
 	{
 		BufferString<200> Debug;
 		Debug << "Failed to create texture; unsupported format " << TFrameFormat::ToString( FrameMeta.mFormat );
-		Unity::DebugLog( Debug );
+		Unity::DebugError(Debug);
 		return Unity::TTexture();
 	}
 
@@ -893,7 +909,7 @@ bool TUnityDevice_Opengl::HasError()
 
 	BufferString<200> Debug;
 	Debug << "Opengl error; " << OpenglError_ToString( Error );
-	Unity::DebugLog( Debug );
+	Unity::DebugError(Debug);
 	return true;
 }
 #endif
@@ -929,7 +945,7 @@ void TUnityDevice_Opengl::OnRenderThreadUpdate()
 
 		std::string Debug = "Opengl version ";
 		Debug += GetString( GL_VERSION );
-		Unity::DebugLog( Debug );
+		Unity::Debug( Debug );
 	}
 
 	//	do we have some dynamic textures we need to allocate or delete?

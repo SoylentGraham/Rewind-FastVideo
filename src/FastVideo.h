@@ -17,8 +17,9 @@
 #endif
 
 //#define ENABLE_DECODER_LIBAV_INIT_SIZE_FRAME		TColour(0,255,0,255)
+#define ENABLE_DECODER_INIT_FRAME			TColour(255,0,255,255)
 #define ENABLE_FAILED_DECODER_INIT_FRAME	TColour(255,0,0,255)
-#define ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR	TColour(255,255,0,255)
+//#define ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR	TColour(255,255,0,255)	//	gr: not done during render thread, causes big stall as GPU waits to be idle as dx::Map copy is blocking
 #define HARDWARE_INIT_TEXTURE_COLOUR		TColour(0,255,255,255)
 
 static bool SKIP_PAST_FRAMES	= true;
@@ -34,7 +35,6 @@ static bool SHOW_POOL_FULL_MESSAGE	=	true;
 //#define FORCE_SINGLE_THREAD_UPLOAD
 static bool	OPENGL_REREADY_MAP			=true;	//	after we copy the dynamic texture, immediately re-open the map
 static bool	OPENGL_USE_STREAM_TEXTURE	=true;	//	GL_STREAM_DRAW else GL_DYNAMIC_DRAW
-static bool DEBUG_RENDER_LAG = false;
 
 #if defined(TARGET_OSX)// && defined(ENABLE_OPENGL)
 static bool USE_APPLE_CLIENT_STORAGE	= true;
@@ -50,7 +50,12 @@ static bool USE_APPLE_CLIENT_STORAGE	= true;
 //#define SINGLETON_THREADSAFE
 //#define DO_GL_FLUSH						glFlush
 
-#define ENABLE_TIMER_DEBUG_LOG			//	shows timer messages to unity
+extern bool USE_TEST_DECODER;
+extern bool ENABLE_TIMER_DEBUG_LOG;
+extern bool ENABLE_ERROR_LOG;
+extern bool ENABLE_FULL_DEBUG_LOG;
+extern bool ENABLE_LAG_DEBUG_LOG;
+extern bool ENABLE_DECODER_DEBUG_LOG;
 
 class TFastTexture;
 
@@ -58,30 +63,50 @@ class TFastTexture;
 
 
 
+//	note: no namespaces to match c# code
+enum UnityEvent
+{
+    OnPostRender = 0,
+};
 
-
-
+enum FastVideoError
+{
+	UknownError			= 0,
+	DecoderError		= 1,
+	CodecError			= 2,
+	FileNotFound		= 3,
+};
 
 
 namespace Unity
 {
 	typedef unsigned long long	ulong;
 	typedef void (*TDebugLogFunc)(const char*);
+	typedef void (*TOnErrorFunc)(ulong,ulong);
 
-	void		DebugLog(const char* str);
-	inline void	DebugLog(const std::string& String)		{	DebugLog( String.c_str() );	}
-	void		DebugError(const char* str);
-	inline void	DebugError(const std::string& String)	{	DebugError( String.c_str() );	}
+	void		OnError(TFastTexture& Instance,FastVideoError Error);
+
+	void		ConsoleLog(const char* str);
+	inline void	ConsoleLog(const std::string& String)		{ ConsoleLog(String.c_str()); }
+
+
+	inline void	DebugError(const std::string& String)		{ ENABLE_ERROR_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+	inline void	DebugError(const char* String)				{ ENABLE_ERROR_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+	inline void	DebugTimer(const std::string& String)		{ ENABLE_TIMER_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+	inline void	DebugTimer(const char* String)				{ ENABLE_TIMER_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+	inline void	DebugDecodeLag(const std::string& String)	{ ENABLE_LAG_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+	inline void	DebugDecodeLag(const char* String)			{ ENABLE_LAG_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+	inline void	DebugDecoder(const std::string& String)		{ ENABLE_DECODER_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+	inline void	DebugDecoder(const char* String)			{ ENABLE_DECODER_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+	inline void	Debug(const std::string& String)			{ ENABLE_FULL_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+	inline void	Debug(const char* String)					{ ENABLE_FULL_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+
 
 	class TScopeTimerWarning : public ofScopeTimerWarning
 	{
 	public:
 		TScopeTimerWarning(const char* Name,uint64 WarningTimeMs,bool AutoStart=true) :
-#if defined(ENABLE_TIMER_DEBUG_LOG)
-		ofScopeTimerWarning( Name, WarningTimeMs, AutoStart, DebugLog )
-#else
-		ofScopeTimerWarning( Name, WarningTimeMs, AutoStart, ofLogNotice )
-#endif
+			ofScopeTimerWarning(Name, WarningTimeMs, AutoStart, DebugTimer )
 		{
 		};
 	};
@@ -95,11 +120,17 @@ extern "C" EXPORT_API bool			SetTexture(Unity::ulong Instance,void* Texture);
 extern "C" EXPORT_API bool			SetVideo(Unity::ulong Instance,const wchar_t* Filename,int Length);
 extern "C" EXPORT_API bool			Pause(Unity::ulong Instance);
 extern "C" EXPORT_API bool			Resume(Unity::ulong Instance);
-extern "C" EXPORT_API bool			SetLooping(Unity::ulong Instance,bool EnableLooping);
+extern "C" EXPORT_API bool			SetLooping(Unity::ulong Instance, bool EnableLooping);
+extern "C" EXPORT_API void			EnableTestDecoder(bool Enable);
+extern "C" EXPORT_API void			EnableDebugTimers(bool Enable);
+extern "C" EXPORT_API void			EnableDebugLag(bool Enable);
+extern "C" EXPORT_API void			EnableDebugError(bool Enable);
+extern "C" EXPORT_API void			EnableDebugFull(bool Enable);
 
 //	http://www.gamedev.net/page/resources/_/technical/game-programming/c-plugin-debug-log-with-unity-r3349
 //	gr: call this in unity to tell us where to DebugLog() to
 extern "C" EXPORT_API void			SetDebugLogFunction(Unity::TDebugLogFunc FunctionPtr);
+extern "C" EXPORT_API void			SetOnErrorFunction(Unity::TOnErrorFunc FunctionPtr);
 
 // If exported by a plugin, this function will be called for GL.IssuePluginEvent script calls.
 // The function will be called on a rendering thread; note that when multithreaded rendering is used,
@@ -154,6 +185,7 @@ private:
 	TFramePool					mFramePool;
 	
 public:
+	Unity::TOnErrorFunc			mOnErrorFunc;
 #if defined(DEBUG_LOG_THREADSAFE)
 	ofMutex						mDebugFuncLock;
 #endif

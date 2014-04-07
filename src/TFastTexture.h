@@ -39,14 +39,14 @@ public:
 	TFastTexture&			mParent;
 	TUnityDevice&			mDevice;
 
-	ofMutex					mDynamicTextureLock;
+	ofMutexTimed			mDynamicTextureLock;
 	Unity::TDynamicTexture	mDynamicTexture;
 	SoyTime					mDynamicTextureFrame;	//	frame in current dynamic texture
 	bool					mDynamicTextureChanged;	//	locked via mDynamicTextureLock
 };
 
 //	instance of a video texture
-class TFastTexture
+class TFastTexture : public SoyThread
 {
 public:
 	TFastTexture(SoyRef Ref,TFramePool& FramePool);
@@ -72,13 +72,18 @@ public:
 	Unity::TTexture		GetTargetTexture()		{	return mTargetTexture;	}
 
 private:
+	void				Update();
+	void				UpdateFrameTime();
+	virtual void		threadedFunction();
+
 	bool				CreateUploadThread(bool IsRenderThread);
 
 	void				DeleteTargetTexture();
 	void				DeleteDecoderThread();
+	void				WaitForAllDeadDecoderThreads();
+	bool				WaitForLastDeadDecoderThread();
 	void				DeleteUploadThread();
-
-	void				UpdateFrameTime();
+	void				OnDecoderInitFailed(FastVideoError Error);
   
     TUnityDevice&       GetDevice();
 
@@ -99,7 +104,8 @@ private:
 
 	Unity::TTexture					mTargetTexture;
 	SoyTime							mTargetTextureFrame;	//	frame of the contents of target texture
-	ofPtr<TDecodeThread>			mDecoderThread;
+	ofMutexM<TDecodeThread*>		mDecoderThread;
+	ofMutexT<Array<TDecodeThread*>>	mDeadDecoderThreads;	//	waiting to kill these off when we can
 	ofPtr<TFastTextureUploadThread>	mUploadThread;
 };
 

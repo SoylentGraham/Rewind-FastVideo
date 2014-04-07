@@ -21,18 +21,33 @@ TFastTexture::TFastTexture(SoyRef Ref,TFramePool& FramePool) :
 	mFrameBuffer			( DEFAULT_MAX_FRAME_BUFFERS, FramePool ),
 	mFramePool				( FramePool ),
 	mState					( TFastVideoState::FirstFrame ),
-	mLooping				( true )
+	mLooping				( true ),
+	SoyThread				( "TFastTexture" ),
+	mDecoderThread			( nullptr )
 {
+	if ( !mDecoderThread.tryLock() )
+	{
+		assert(false);
+	}
+	else
+	{
+		mDecoderThread.unlock();
+	}
+	startThread( true, true );
 }
 
 TFastTexture::~TFastTexture()
 {
+	//	wait for self thread to finish
+	waitForThread();
+
 	//	wait for render to finish
 	ofMutex::ScopedLock Lock( mRenderLock );
 
 	DeleteTargetTexture();
 	DeleteUploadThread();
 	DeleteDecoderThread();
+	WaitForAllDeadDecoderThreads();
 }
 
 TUnityDevice& TFastTexture::GetDevice()
@@ -40,7 +55,7 @@ TUnityDevice& TFastTexture::GetDevice()
     static TUnityDevice_Dummy DummyDevice;
     if ( !mDevice )
     {
-        Unity::DebugLog("Device expected");
+        Unity::Debug("Device expected");
         return DummyDevice;
     }
     return *mDevice;
@@ -74,7 +89,7 @@ void TFastTexture::SetState(TFastVideoState::Type State)
 
 	BufferString<100> Debug;
 	Debug << GetRef() << " " << TFastVideoState::ToString(State);
-	Unity::DebugLog( Debug );
+	Unity::Debug( Debug );
 }
 
 void TFastTexture::DeleteTargetTexture()
@@ -86,10 +101,106 @@ void TFastTexture::DeleteTargetTexture()
 
 void TFastTexture::DeleteDecoderThread()
 {
-	if ( mDecoderThread )
+	ofMutex::ScopedLock lock( mDecoderThread );
+	auto& DecoderThread = mDecoderThread.Get();
+	if ( DecoderThread )
 	{
-		mDecoderThread->waitForThread();
-		mDecoderThread.reset();
+		DecoderThread->stopThread();
+//#error violation reading location 0x00003FFF.
+		/*
+		~TDecodeThread WaitForThread
+~TDecodeThread finished
+TDecodeThread::~TDecodeThread took 1ms to execute
+FastVideo: TDecodeThread::~TDecodeThread took 1ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+DX::Map copy took 14ms to execute
+TFastTexture::UpdateFrameTexture took 14ms to execute
+FastVideo: DX::Map copy took 14ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+TDecodeThread::TDecodeThread
+FastVideo: TFastTexture::UpdateFrameTexture took 14ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+Set frametime: T000149016
+TDecodeThread::PushInitFrame took 200ms to execute
+TDecodeThread - starting thread
+TDecodeThread - starting thread OK
+TDecodeThread::Init took 207ms to execute
+Unknown error: -5
+TDecoder_Libav::Init took 3ms to execute
+The thread 0x19c8 has exited with code 0 (0x0).
+FastVideo: TDecodeThread::PushInitFrame took 200ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+DX::Map copy took 15ms to execute
+FastVideo: TDecodeThread::Init took 207ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+FastVideo: Unknown error: -5
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+FastVideo: TDecoder_Libav::Init took 3ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+TFastTexture::UpdateFrameTexture took 29ms to execute
+FastVideo: DX::Map copy took 15ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+FastVideo: TFastTexture::UpdateFrameTexture took 29ms to execute
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+Rendering 237ms behind
+FastVideo: Rendering 237ms behind
+ 
+(Filename: C:/BuildAgent/work/cac08d8a5e25d4cb/Runtime/ExportGenerated/Editor/UnityEngineDebug.cpp Line: 54)
+
+Pushing Debug ERROR Frame; TFastTexture::OnDecoderInitFailed
+Set frametime: T000000000
+FastTxtw FirstFrame
+Set frametime: T000000000
+~TDecodeThread release frames
+~TDecodeThread WaitForThread
+~TDecodeThread finished
+TDecodeThread::~TDecodeThread took 1ms to execute
+First-chance exception at 0x7711DFE4 (ntdll.dll) in Unity.exe: 0xC0000005: Access violation reading location 0x00003FFF.
+Unhandled exception at 0x7711DFE4 (ntdll.dll) in Unity.exe: 0xC0000005: Access violation reading location 0x00003FFF.
+
+
+
+
+		 	ntdll.dll!7711dfe4()	Unknown
+ 	[Frames below may be incorrect and/or missing, no symbols loaded for ntdll.dll]	
+ 	[External Code]	
+ 	avutil-52.dll!66b932c3()	Unknown
+ 	avformat-55.dll!61006130()	Unknown
+ 	[External Code]	
+ 	FastVideo.dll!TDecoder_Libav::~TDecoder_Libav() Line 496	C++
+ 	[External Code]	
+ 	FastVideo.dll!TDecodeThread::~TDecodeThread() Line 186	C++
+ 	[External Code]	
+ 	FastVideo.dll!Array<ofPtr<TDecodeThread>,prcore::Heap>::PushBack(const ofPtr<TDecodeThread> & item) Line 302	C++
+>	FastVideo.dll!TFastTexture::DeleteDecoderThread() Line 99	C++
+ 	FastVideo.dll!TFastTexture::SetVideo(const std::basic_string<wchar_t,std::char_traits<wchar_t>,std::allocator<wchar_t> > & Filename) Line 192	C++
+ 	FastVideo.dll!TFastTexture::Update() Line 317	C++
+ 	FastVideo.dll!TFastTexture::threadedFunction() Line 342	C++
+ 	FastVideo.dll!ofThread::threadFunc(void * args) Line 140	C++
+
+	*/
+		mDeadDecoderThreads.lock();
+		mDeadDecoderThreads.PushBack( DecoderThread );
+		mDeadDecoderThreads.unlock();
+		DecoderThread = nullptr;
 	}
 }
 
@@ -135,10 +246,12 @@ void TFastTexture::DeleteUploadThread()
 		mUploadThread.reset();
 	}
 
-	if ( mDecoderThread )
+	//mDecoderThread.lock();
+	if ( mDecoderThread.Get() )
 	{
-		mDecoderThread->SetDecodedFrameMeta( TFrameMeta() );
-	}	
+		mDecoderThread.Get()->SetDecodedFrameMeta( TFrameMeta() );
+	}
+	//mDecoderThread.lock();
 }
 
 
@@ -156,7 +269,7 @@ bool TFastTexture::SetTexture(Unity::TTexture TargetTexture)
 		auto TextureMeta = Device.GetTextureMeta( TargetTexture );
 		BufferString<100> Debug;
 		Debug << "Assigning target texture; " << TextureMeta.mWidth << "x" << TextureMeta.mHeight << "x" << TextureMeta.GetChannels();
-		Unity::DebugLog( Debug );
+		Unity::Debug( Debug );
 	}
 	mTargetTexture = TargetTexture;
 
@@ -183,32 +296,19 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 	//	 alloc new decoder thread
 	TDecodeParams Params;
 	Params.mFilename = Filename;
-	mDecoderThread = ofPtr<TDecodeThread>( new TDecodeThread( Params, mFrameBuffer, mFramePool ) );
+	Params.mTargetTextureMeta = Device.GetTextureMeta( mTargetTexture );
+	
+	ofMutex::ScopedLock lock(mDecoderThread);	//	unneccesary?
+	mDecoderThread.Get() = new TDecodeThread( Params, mFrameBuffer, mFramePool );
 
 	//	do initial init, will verify filename, dimensions, etc
-	if ( !mDecoderThread->Init() )
+	TDecodeInitResult::Type InitResult = mDecoderThread.Get()->Init();
+	if ( InitResult != TDecodeInitResult::Success )
 	{
 		DeleteDecoderThread();
-				
-#if defined(ENABLE_FAILED_DECODER_INIT_FRAME)
-		//	push a red "BAD" frame
-		//	gr: was dynamic texture format
-		TFrameMeta TextureFormat = Device.GetTextureMeta( mTargetTexture );
-		TFramePixels* Frame = mFramePool.Alloc( TextureFormat, "Debug failed init" );
-		if ( Frame )
-		{
-			Unity::DebugLog( BufferString<100>()<<"Pushing Debug ERROR Frame; " << __FUNCTION__ );
-			Frame->SetColour( ENABLE_FAILED_DECODER_INIT_FRAME );
-			mFrameBuffer.PushFrame( Frame );	
-		}
-		else
-		{
-			BufferString<100> Debug;
-			Debug << "failed to alloc debug Init frame";
-			Unity::DebugLog( Debug );
-		}
-#endif
 
+		auto Error = TDecodeInitResult::GetFastVideoError( InitResult );
+		OnDecoderInitFailed( Error );
 		return false;
 	}
 
@@ -217,12 +317,37 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 	if ( mTargetTexture )
 	{
 		TFrameMeta TextureFormat = Device.GetTextureMeta( mTargetTexture );
-		mDecoderThread->SetDecodedFrameMeta( TextureFormat );
+		mDecoderThread.Get()->SetDecodedFrameMeta( TextureFormat );
 	}
 
 	return true;
 }
 
+void TFastTexture::OnDecoderInitFailed(FastVideoError Error)
+{
+#if defined(ENABLE_FAILED_DECODER_INIT_FRAME)
+	//	push a red "BAD" frame
+    auto& Device = GetDevice();
+	//	gr: was dynamic texture format
+	TFrameMeta TextureFormat = Device.GetTextureMeta( mTargetTexture );
+	TFramePixels* Frame = mFramePool.Alloc( TextureFormat, "Debug failed init" );
+	if ( Frame )
+	{
+		Unity::Debug(BufferString<100>() << "Pushing Debug ERROR Frame; " << __FUNCTION__);
+		Frame->SetColour( ENABLE_FAILED_DECODER_INIT_FRAME );
+		mFrameBuffer.PushFrame( Frame );	
+	}
+	else
+	{
+		BufferString<100> Debug;
+		Debug << "failed to alloc debug Init frame";
+		Unity::DebugError(Debug);
+	}
+#endif
+
+	//	report error
+	Unity::OnError( *this, Error );
+}
 
 bool TFastTexture::UpdateFrameTexture(Unity::TTexture Texture,SoyTime& FrameCopied)
 {
@@ -290,6 +415,70 @@ bool TFastTexture::UpdateFrameTexture(Unity::TDynamicTexture Texture,SoyTime& Fr
 	return true;
 }
 
+void TFastTexture::Update()
+{
+	//mDecoderThread.lock();
+	auto& DecoderThread = mDecoderThread.Get();
+	if ( DecoderThread )
+	{
+		if ( DecoderThread->HasFailedInitialisation() )
+		{
+			auto Error = TDecodeState::GetFastVideoError( DecoderThread->mState );
+			OnDecoderInitFailed(Error);
+		}
+
+		if ( DecoderThread->HasFinishedDecoding() )
+		{
+			if ( this->mLooping )
+			{
+				auto Filename = DecoderThread->mParams.mFilename;
+				SetVideo( Filename );
+			}
+		}
+	}
+	//mDecoderThread.unlock();
+
+	//	kill old decoder threads (could stall here, but shouldn't be too noticable...)
+	//	one at a time, not a big deal to delay it
+	WaitForLastDeadDecoderThread();
+
+}
+
+void TFastTexture::WaitForAllDeadDecoderThreads()
+{
+	while ( WaitForLastDeadDecoderThread() )
+	{
+	}
+}
+
+
+bool TFastTexture::WaitForLastDeadDecoderThread()
+{
+	mDeadDecoderThreads.lock();
+	TDecodeThread* pThread = nullptr;
+	if ( !mDeadDecoderThreads.IsEmpty() )
+		pThread = mDeadDecoderThreads.PopBack();
+	mDeadDecoderThreads.unlock();
+	
+	if ( !pThread )
+		return false;
+	
+	pThread->waitForThread();
+	delete pThread;
+	pThread = nullptr;
+	return true;
+}
+
+void TFastTexture::threadedFunction()
+{
+	while ( isThreadRunning() )
+	{
+		int SleepMs = static_cast<int>( 1000.f/100.f );
+		Sleep( SleepMs );
+		Update();
+	}
+}
+
 void TFastTexture::OnPostRender()
 {
 	Unity::TScopeTimerWarning Timer(__FUNCTION__,4);
@@ -321,7 +510,7 @@ void TFastTexture::OnPostRender()
 	if ( TargetChanged )
 		OnTargetTextureChanged();
 
-	if ( TargetChanged && DEBUG_RENDER_LAG )
+	if ( TargetChanged )
 	{
 		auto Now = GetFrameTime();
 		auto Lag = Now.GetTime() - mTargetTextureFrame.GetTime();
@@ -330,21 +519,11 @@ void TFastTexture::OnPostRender()
 		{
 			BufferString<100> Debug;
 			Debug << "Rendering " << Lag << "ms behind";
-			Unity::DebugLog( Debug );
+			Unity::DebugDecodeLag(Debug);
 		}
 	}
 
-	if ( mDecoderThread )
-	{
-		if ( mDecoderThread->IsFinishedDecoding() )
-		{
-			if ( this->mLooping )
-			{
-				auto Filename = mDecoderThread->mParams.mFilename;
-				SetVideo( Filename );
-			}
-		}
-	}
+
 }
 
 SoyTime TFastTexture::GetFrameTime()
@@ -391,9 +570,10 @@ void TFastTexture::UpdateFrameTime()
 	ofMutex::ScopedLock lockb( mFrame );
 	mFrame.Get() = SoyTime( mFrame.GetTime() + Step );
 
-	if ( mDecoderThread )
+	//ofMutex::ScopedLock lockdecoderthread( mDecoderThread );
+	if ( mDecoderThread.Get() )
 	{
-		mDecoderThread->SetMinTimestamp( mFrame );
+		mDecoderThread.Get()->SetMinTimestamp( mFrame );
 	}
 	/*
 	BufferString<100> Debug;
@@ -412,9 +592,10 @@ void TFastTexture::SetFrameTime(SoyTime Frame)
 	mFrame.Get() = Frame;
 	mLastUpdateTime.Get() = SoyTime(true);
 
-	if ( mDecoderThread )
+	//ofMutex::ScopedLock lockc( mDecoderThread );
+	if ( mDecoderThread.Get() )
 	{
-		mDecoderThread->SetMinTimestamp( mFrame );
+		mDecoderThread.Get()->SetMinTimestamp( mFrame );
 	}
 
 //	mDynamicTextureFrame = Frame;	//	-1?
@@ -422,7 +603,7 @@ void TFastTexture::SetFrameTime(SoyTime Frame)
 
 	BufferString<100> Debug;
 	Debug << "Set frametime: " << mFrame.Get();
-	Unity::DebugLog( Debug );
+	Unity::Debug( Debug );
 }
 
 
@@ -442,7 +623,7 @@ void TFastTextureUploadThread::threadedFunction()
 void TFastTextureUploadThread::Update()
 {
 	{
-		ofMutex::ScopedLock Lock( mDynamicTextureLock );
+		ofMutexTimed::ScopedLock Lock( mDynamicTextureLock );
 		//	last one hasnt been used yet
 		if ( mDynamicTextureChanged )
 			return;
@@ -460,7 +641,12 @@ void TFastTextureUploadThread::Update()
 bool TFastTextureUploadThread::CopyToTarget(Unity::TTexture TargetTexture,SoyTime& TargetTextureFrame)
 {
 	//	copy latest dynamic texture
-	ofMutex::ScopedLock Lock( mDynamicTextureLock );
+	ofMutexTimed::ScopedLockTimed Lock( mDynamicTextureLock, 2 );
+	if ( !Lock.IsLocked() )
+	{
+		Unity::Debug("mDynamicTextureLock failed to lock");
+		return false;
+	}
 		
 	//	dont' have a new texture yet
 	if ( !mDynamicTextureChanged )
@@ -516,7 +702,7 @@ bool TFastTextureUploadThread::CreateDynamicTexture()
 	auto TargetTextureMeta = Device.GetTextureMeta( mTargetTexture );
 
 	//	if dimensions are different, delete old one
-	ofMutex::ScopedLock lock( mDynamicTextureLock );
+	ofMutexTimed::ScopedLock lock( mDynamicTextureLock );
 	if ( mDynamicTexture )
 	{
 		auto CurrentTextureMeta = Device.GetTextureMeta( mDynamicTexture );
@@ -535,7 +721,7 @@ bool TFastTextureUploadThread::CreateDynamicTexture()
 		{
 			BufferString<100> Debug;
 			Debug << "Failed to alloc dynamic texture; " << TargetTextureMeta.mWidth << "x" << TargetTextureMeta.mHeight << "x" << TargetTextureMeta.GetChannels();
-			Unity::DebugLog( Debug );
+			Unity::DebugError( Debug );
 
 			DeleteDynamicTexture();
 			return false;
@@ -574,14 +760,14 @@ bool TFastTextureUploadThread::CreateDynamicTexture()
 
 void TFastTextureUploadThread::DeleteDynamicTexture()
 {
-	ofMutex::ScopedLock lock( mDynamicTextureLock );
+	ofMutexTimed::ScopedLock lock( mDynamicTextureLock );
     auto& Device = GetDevice();
 	Device.DeleteTexture( mDynamicTexture );
 }
 
 bool TFastTextureUploadThread::IsValid()
 {
-	ofMutex::ScopedLock lock( mDynamicTextureLock );
+	ofMutexTimed::ScopedLock lock( mDynamicTextureLock );
     return mDynamicTexture.IsValid();
 }
 
