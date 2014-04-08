@@ -492,9 +492,8 @@ void TFastTexture::OnPostRender()
 
 	if ( mUploadThread )
 	{
-#if defined(FORCE_SINGLE_THREAD_UPLOAD)
-		mUploadThread->Update();
-#endif
+		if ( FORCE_SINGLE_THREAD_UPLOAD )
+			mUploadThread->Update();
 
 		//	get latest dynamic texture
 		Unity::TScopeTimerWarning Timerb( BufferString<100>()<<__FUNCTION__<<"mUploadThread->CopyToTarget",4);
@@ -614,9 +613,8 @@ void TFastTextureUploadThread::threadedFunction()
 	{
 		sleep(1);
 
-#if !defined(FORCE_SINGLE_THREAD_UPLOAD)
-		Update();
-#endif
+		if ( !FORCE_SINGLE_THREAD_UPLOAD )
+			Update();
 	}
 }
 

@@ -32,7 +32,7 @@ static bool SHOW_POOL_FULL_MESSAGE	=	true;
 
 #define REAL_TIME_MODIFIER				1.0f	//	speed up/slow down real life time
 
-//#define FORCE_SINGLE_THREAD_UPLOAD
+static bool FORCE_SINGLE_THREAD_UPLOAD	= true;
 static bool	OPENGL_REREADY_MAP			=true;	//	after we copy the dynamic texture, immediately re-open the map
 static bool	OPENGL_USE_STREAM_TEXTURE	=true;	//	GL_STREAM_DRAW else GL_DYNAMIC_DRAW
 
