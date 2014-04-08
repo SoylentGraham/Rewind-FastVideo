@@ -266,6 +266,10 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture TextureU,const TFramePixels&
 		return false;
 	}
 
+	//	gr: if we're not using our dynamic texture, we're trying to map straight to the unity no-cpu-write texture 
+	//		and need an alternative method to map()
+	//	CopyTexture
+
 	//	update our dynamic texture
 	{
 		Unity::TScopeTimerWarning MapTimer("DX::Map copy",2);
@@ -276,21 +280,30 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture TextureU,const TFramePixels&
 		D3D11_MAPPED_SUBRESOURCE resource;
 		ZeroMemory( &resource, sizeof(resource) );
 		int SubResource = 0;
-		//bool IsDefferedContext = (ctx->GetType() == D3D11_DEVICE_CONTEXT_DEFERRED);
-		bool IsDefferedContext = true;
+		bool IsDefferedContext = (ctx->GetType() == D3D11_DEVICE_CONTEXT_DEFERRED);
+		bool IsDynamicTexture = (SrcDesc.Usage == D3D11_USAGE_DYNAMIC);
 
-		int MapFlags;
+		//	texture dictates map mode
 		D3D11_MAP MapMode;
-		if ( IsDefferedContext )
-		{
-			MapFlags = 0x0;
+		if ( IsDynamicTexture )
 			MapMode = D3D11_MAP_WRITE_DISCARD;
-		}
 		else
-		{
-			MapFlags = !Blocking ? D3D11_MAP_FLAG_DO_NOT_WAIT : 0x0;
 			MapMode = D3D11_MAP_WRITE;
+
+		//	context determines flags
+		int MapFlags = 0x0;
+		if ( !IsDefferedContext )
+		{
+			//	can only have DO_NOT_WAIT if map_READ/WRITE/READ_WRITE (from runtime debug)
+			//D3D11 ERROR: ID3D11DeviceContext::Map: MAP_FLAG_DO_NOT_WAIT can only be used with MAP_READ, MAP_WRITE, or MAP_READ_WRITE. [ RESOURCE_MANIPULATION ERROR #2097212: RESOURCE_MAP_INVALIDFLAGS]
+			if ( !Blocking )
+			{
+				if ( MapMode == D3D11_MAP_WRITE || MapMode == D3D11_MAP_READ || MapMode == D3D11_MAP_READ_WRITE )
+					MapFlags |= D3D11_MAP_FLAG_DO_NOT_WAIT;
+			}
+
 		}
+
 
 		HRESULT hr = ctx->Map(Texture, SubResource, MapMode, MapFlags, &resource);
 
