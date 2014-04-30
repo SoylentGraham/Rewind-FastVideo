@@ -259,16 +259,25 @@ bool TUnityDevice_Dx11::CopyTexture(Unity::TTexture TextureU,const TFramePixels&
 
 
 	TAutoRelease<ID3D11DeviceContext> ctx;
-	Device11.GetImmediateContext( &ctx.mObject );
-	if ( !ctx )
-	{
-		Unity::DebugError("Failed to get device context");
-		return false;
-	}
+	auto Result = Device11.CreateDeferredContext( 0, &ctx.mObject );
 
-	//	gr: if we're not using our dynamic texture, we're trying to map straight to the unity no-cpu-write texture 
-	//		and need an alternative method to map()
-	//	CopyTexture
+	//	if creating a deffered context fails, we can still work, with an immediate context, but only if we're in the renderthread
+	//	 D3D11_CREATE_DEVICE_SINGLETHREADED will fail creating a deffered contexts
+	if ( !ctx || Result != S_OK )
+	{
+		if ( !IsRenderThreadActive() )
+		{
+			Unity::DebugError("Failed to get device context - deffered context not availible and not on render thread");
+			return false;
+		}
+		
+		Device11.GetImmediateContext( &ctx.mObject );
+		if ( !ctx )
+		{
+			Unity::DebugError("Failed to get immediate device context");
+			return false;
+		}
+	}
 
 	//	update our dynamic texture
 	{

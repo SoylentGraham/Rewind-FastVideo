@@ -22,23 +22,9 @@
 //#define ENABLE_DYNAMIC_INIT_TEXTURE_COLOUR	TColour(255,255,0,255)	//	gr: not done during render thread, causes big stall as GPU waits to be idle as dx::Map copy is blocking
 #define HARDWARE_INIT_TEXTURE_COLOUR		TColour(0,255,255,255)
 
-static bool SKIP_PAST_FRAMES	= true;
-static bool STORE_PAST_FRAMES	= true;
-static bool SHOW_POOL_FULL_MESSAGE	=	true;
-
 #define ALWAYS_COPY_DYNAMIC_TO_TARGET	false	//	gr: I think not changing the target causes some double buffer mess
 #define DYNAMIC_SKIP_OOO_FRAMES			true
 #define DECODER_SKIP_OOO_FRAMES			false
-
-#define REAL_TIME_MODIFIER				1.0f	//	speed up/slow down real life time
-
-static bool FORCE_SINGLE_THREAD_UPLOAD	= true;
-static bool	OPENGL_REREADY_MAP			=true;	//	after we copy the dynamic texture, immediately re-open the map
-static bool	OPENGL_USE_STREAM_TEXTURE	=true;	//	GL_STREAM_DRAW else GL_DYNAMIC_DRAW
-
-#if defined(TARGET_OSX)// && defined(ENABLE_OPENGL)
-static bool USE_APPLE_CLIENT_STORAGE	= true;
-#endif
 
 #define ENABLE_DEBUG_LOG
 
@@ -50,12 +36,26 @@ static bool USE_APPLE_CLIENT_STORAGE	= true;
 //#define SINGLETON_THREADSAFE
 //#define DO_GL_FLUSH						glFlush
 
+extern bool SKIP_PAST_FRAMES;
+extern bool STORE_PAST_FRAMES;
+extern bool SHOW_POOL_FULL_MESSAGE;
+
 extern bool USE_TEST_DECODER;
 extern bool ENABLE_TIMER_DEBUG_LOG;
 extern bool ENABLE_ERROR_LOG;
 extern bool ENABLE_FULL_DEBUG_LOG;
 extern bool ENABLE_LAG_DEBUG_LOG;
 extern bool ENABLE_DECODER_DEBUG_LOG;
+extern float REAL_TIME_MODIFIER;	//	speed up/slow down real life time
+
+extern bool FORCE_SINGLE_THREAD_UPLOAD;
+extern bool	OPENGL_REREADY_MAP;			//	after we copy the dynamic texture, immediately re-open the map
+extern bool	OPENGL_USE_STREAM_TEXTURE;	//	GL_STREAM_DRAW else GL_DYNAMIC_DRAW
+
+#if defined(TARGET_OSX)// && defined(ENABLE_OPENGL)
+extern bool USE_APPLE_CLIENT_STORAGE;
+#endif
+
 
 class TFastTexture;
 
@@ -121,6 +121,8 @@ extern "C" EXPORT_API bool			SetVideo(Unity::ulong Instance,const wchar_t* Filen
 extern "C" EXPORT_API bool			Pause(Unity::ulong Instance);
 extern "C" EXPORT_API bool			Resume(Unity::ulong Instance);
 extern "C" EXPORT_API bool			SetLooping(Unity::ulong Instance, bool EnableLooping);
+extern "C" EXPORT_API void			SetSpeedScale(float SpeedScale);
+extern "C" EXPORT_API void			SetSingleThreadUpload(bool Enable);
 extern "C" EXPORT_API void			EnableTestDecoder(bool Enable);
 extern "C" EXPORT_API void			EnableDebugTimers(bool Enable);
 extern "C" EXPORT_API void			EnableDebugLag(bool Enable);

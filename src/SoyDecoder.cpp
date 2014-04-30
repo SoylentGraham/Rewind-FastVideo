@@ -691,7 +691,8 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 		//	framerate == 0.04 (which is 1/25fps)
 		//	therefore frame rate is in seconds
 		//	we want timestamp in ms
-		mFakeRunningTimestamp += FrameRate * 1000.f;
+		float Step = static_cast<float>(FrameRate) * 1000.f;
+		mFakeRunningTimestamp += static_cast<uint64>(Step);
 		OutputFrame.mTimestamp = SoyTime( mFakeRunningTimestamp );
 	}
 	

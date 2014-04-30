@@ -84,7 +84,7 @@ void TFastTexture::SetState(TFastVideoState::Type State)
 
 	if ( mState == TFastVideoState::FirstFrame )
 	{
-		SetFrameTime( SoyTime() );
+		InitFrameTime();
 	}
 
 	BufferString<100> Debug;
@@ -289,7 +289,7 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 
 	//	reset video state
 	SetState( TFastVideoState::FirstFrame );
-	SetFrameTime( SoyTime() );
+	InitFrameTime();
 
 	DeleteDecoderThread();
 
@@ -542,13 +542,19 @@ void TFastTexture::OnTargetTextureChanged()
 	}
 }
 
+SoyTime TFastTexture::GetNowTime()
+{
+	uint64 Now = SoyTime(true).GetTime();
+	Now -= mStartTime.GetTime();
+	return SoyTime(Now);
+}
 
 void TFastTexture::UpdateFrameTime()
 {
 	Unity::TScopeTimerWarning Timer(__FUNCTION__,2);
 	ofMutex::ScopedLock locka( mLastUpdateTime );
 	//	get step
-	SoyTime Now(true);
+	SoyTime Now = GetNowTime();
 	auto Step = Now.GetTime() - mLastUpdateTime.Get().GetTime();
 	float Stepf = static_cast<float>( Step ) * REAL_TIME_MODIFIER;
 	Step = static_cast<uint64>( Stepf );
@@ -568,6 +574,10 @@ void TFastTexture::UpdateFrameTime()
 	
 	ofMutex::ScopedLock lockb( mFrame );
 	mFrame.Get() = SoyTime( mFrame.GetTime() + Step );
+
+	BufferString<100> Debug;
+	Debug << "Frame is: " << mFrame.Get() << "ms";
+	Unity::DebugError( Debug );
 
 	//ofMutex::ScopedLock lockdecoderthread( mDecoderThread );
 	if ( mDecoderThread.Get() )
@@ -589,7 +599,7 @@ void TFastTexture::SetFrameTime(SoyTime Frame)
 	ofMutex::ScopedLock lockb( mFrame );
 
 	mFrame.Get() = Frame;
-	mLastUpdateTime.Get() = SoyTime(true);
+	mLastUpdateTime.Get() = GetNowTime();
 
 	//ofMutex::ScopedLock lockc( mDecoderThread );
 	if ( mDecoderThread.Get() )
@@ -605,6 +615,13 @@ void TFastTexture::SetFrameTime(SoyTime Frame)
 	Unity::Debug( Debug );
 }
 
+
+void TFastTexture::InitFrameTime()
+{
+	mStartTime.Get() = SoyTime(true);
+	mTargetTextureFrame = SoyTime();	//	reset target frame otherwise mFrame gets overwritten by this on next copy
+	SetFrameTime( SoyTime() );
+}
 
 
 void TFastTextureUploadThread::threadedFunction()

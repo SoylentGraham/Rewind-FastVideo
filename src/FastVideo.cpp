@@ -11,9 +11,22 @@ bool USE_TEST_DECODER = false;
 bool ENABLE_TIMER_DEBUG_LOG = false;		//	shows timer messages to unity
 bool ENABLE_ERROR_LOG = true;			//	big-error debug
 bool ENABLE_FULL_DEBUG_LOG = false;		//	coder-only debug
-bool ENABLE_LAG_DEBUG_LOG = false;		//	decoder lag
+bool ENABLE_LAG_DEBUG_LOG = true;		//	decoder lag
 bool ENABLE_DECODER_DEBUG_LOG = false;		//	libav output
 
+bool SKIP_PAST_FRAMES	= true;
+bool STORE_PAST_FRAMES	= true;
+bool SHOW_POOL_FULL_MESSAGE	=	true;
+
+float REAL_TIME_MODIFIER			= 1.0f;	//	speed up/slow down real life time
+
+bool FORCE_SINGLE_THREAD_UPLOAD	= true;
+bool	OPENGL_REREADY_MAP			=true;	//	after we copy the dynamic texture, immediately re-open the map
+ bool	OPENGL_USE_STREAM_TEXTURE	=true;	//	GL_STREAM_DRAW else GL_DYNAMIC_DRAW
+
+#if defined(TARGET_OSX)// && defined(ENABLE_OPENGL)
+bool USE_APPLE_CLIENT_STORAGE	= true;
+#endif
 
 
 namespace Unity
@@ -393,6 +406,16 @@ extern "C" EXPORT_API bool SetLooping(Unity::ulong Instance, bool EnableLooping)
 
 	pInstance->SetLooping(EnableLooping);
 	return true;
+}
+
+extern "C" EXPORT_API void SetSpeedScale(float SpeedScale)
+{
+	REAL_TIME_MODIFIER = SpeedScale;
+}
+
+extern "C" EXPORT_API void SetSingleThreadUpload(bool Enable)
+{
+	FORCE_SINGLE_THREAD_UPLOAD = Enable;
 }
 
 extern "C" EXPORT_API void EnableTestDecoder(bool Enable)

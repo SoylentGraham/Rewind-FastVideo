@@ -64,6 +64,7 @@ public:
 	void				SetLooping(bool EnableLooping);
    
 	SoyTime				GetFrameTime();
+	void				InitFrameTime();
 	void				SetFrameTime(SoyTime Time);
 
 	bool				UpdateFrameTexture(Unity::TTexture Texture,SoyTime& FrameCopied);			//	copy latest frame to texture. returns if changed
@@ -74,6 +75,7 @@ public:
 private:
 	void				Update();
 	void				UpdateFrameTime();
+	SoyTime				GetNowTime();
 	virtual void		threadedFunction();
 
 	bool				CreateUploadThread(bool IsRenderThread);
@@ -96,6 +98,7 @@ private:
 	bool					mLooping;
 	ofMutexT<SoyTime>		mFrame;
 	ofMutexT<SoyTime>		mLastUpdateTime;
+	ofMutexT<SoyTime>		mStartTime;
 	TFrameBuffer			mFrameBuffer;
 	SoyRef					mRef;
 
