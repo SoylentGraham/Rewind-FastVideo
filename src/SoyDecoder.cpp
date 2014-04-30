@@ -58,7 +58,7 @@ TDecoder_Test::TDecoder_Test() :
 TDecodeInitResult::Type TDecoder_Test::Init(const TDecodeParams& Params)
 {
 	//	debug test to see if a big init pause locks up unity
-	Sleep(4000);
+	//Sleep(4000);
 
 	//	delayed failure test
 	return TDecodeInitResult::UnknownError;
@@ -686,8 +686,12 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 	}
 	else
 	{
-		uint64 Step = static_cast<uint64>( 1.f / FrameRate );
-		mFakeRunningTimestamp += Step;
+		//uint64 Step = static_cast<uint64>( 1.f / FrameRate );
+		//mFakeRunningTimestamp += Step;
+		//	framerate == 0.04 (which is 1/25fps)
+		//	therefore frame rate is in seconds
+		//	we want timestamp in ms
+		mFakeRunningTimestamp += FrameRate * 1000.f;
 		OutputFrame.mTimestamp = SoyTime( mFakeRunningTimestamp );
 	}
 	

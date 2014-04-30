@@ -168,9 +168,7 @@ public:
 public:
 	TVideoMeta			mVideoMeta;
 	SoyTime				mLastDecodedTimestamp;
-#if defined(USE_REAL_TIMESTAMP)
 	SoyTime				mFakeRunningTimestamp;
-#endif
 };
 
 
