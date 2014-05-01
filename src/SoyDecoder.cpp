@@ -1,6 +1,8 @@
 #include "SoyDecoder.h"
 #include <SortArray.h>
 
+#define MAX_DECODER_FRAMESKIP	25
+#define MIN_DECODER_FRAMESKIP	0	//	debug, shouldnt ever have a min frameskip!
 
 
 
@@ -583,7 +585,7 @@ void TDecoder::FreeDxvaContext()
 
 
 #if defined(ENABLE_DECODER_LIBAV)
-bool TDecoder_Libav::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacket,std::shared_ptr<AVFrame>& Frame,int& DataOffset)
+bool TDecoder_Libav::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacket,std::shared_ptr<AVFrame>& Frame,int& DataOffset,int SkipFrames,int64_t MinPts)
 {
 	Unity::TScopeTimerWarning Timer( __FUNCTION__, 1 );
 
@@ -597,6 +599,8 @@ bool TDecoder_Libav::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacke
 	int isFrameAvailable = false;
 	while ( !isFrameAvailable )
 	{
+		bool SkippingThisFrame = (SkipFrames>0);
+
 		// reading a packet using libavformat
 		if ( DataOffset >= CurrentPacket.packet.size) 
 		{
@@ -607,8 +611,16 @@ bool TDecoder_Libav::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacke
 				if ( !CurrentPacket.reset( mContext.get() ) )
 					return false;
 				
-				if ( CurrentPacket.packet.stream_index == mVideoStream->index )
-					break;
+				//	not our stream, skip
+				if ( CurrentPacket.packet.stream_index != mVideoStream->index )
+					continue;
+
+				//	looking for min pts
+				if ( MinPts != 0 && CurrentPacket.packet.pts < MinPts )
+					continue;
+
+				//	found our packet to decode
+				break;
 			}
 		}
 
@@ -632,6 +644,13 @@ bool TDecoder_Libav::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacke
 	
 		//	frame is availible, return it's info
 		FrameMeta = TFrameMeta( Frame->width, Frame->height, GetFormat(static_cast<AVPixelFormat>(Frame->format) ) );
+		
+		if ( SkippingThisFrame )
+		{
+			isFrameAvailable = false;
+			SkipFrames--;
+			continue;
+		}
 		return true;
 	}
 
@@ -650,13 +669,39 @@ bool TDecoder_Libav::PeekNextFrame(TFrameMeta& FrameMeta)
 	int peekDataOffset = mDataOffset;
 	TPacket PeekCurrentPacket;
 	std::shared_ptr<AVFrame> peekFrame = std::shared_ptr<AVFrame>(avcodec_alloc_frame(), &av_free);
-
-	if ( !DecodeNextFrame( FrameMeta, PeekCurrentPacket, peekFrame, peekDataOffset ) )
+	int SkipFrames = 0;
+	int64_t MinPts = 0;
+	if ( !DecodeNextFrame( FrameMeta, PeekCurrentPacket, peekFrame, peekDataOffset, SkipFrames, MinPts ) )
 		return false;
 
 	return true;
 }
 #endif
+
+int64 MsToPts(SoyTime Time,double TimeBase,double FrameRate)
+{
+	double TimeMs = Time.GetTime();
+	double TimeSecs = TimeMs / 1000.0;
+	double Timestamp = TimeSecs / TimeBase;
+	return Timestamp;
+}
+
+SoyTime PtsToMs(int64 Pts,double TimeBase,double FrameRate)
+{
+	assert( Pts != AV_NOPTS_VALUE );
+	double TimeSecs = TimeBase * Pts;
+	double TimeMs = TimeSecs * 1000.0;
+	uint64 TimeMs64 = static_cast<uint64>( TimeMs );
+	return SoyTime( TimeMs64 );
+	/*
+	auto PresentationTimestamp = Pts;
+	double Timestamp = PresentationTimestamp * TimeBase;
+	//double TimeSecs = Timestamp * FrameRate;
+	double TimeSecs = Timestamp;
+	double TimeMs = TimeSecs * 1000.f;
+	return SoyTime( static_cast<uint64>(TimeMs) );
+	*/
+}
 
 
 #if defined(ENABLE_DECODER_LIBAV)
@@ -665,36 +710,71 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 	TryAgain = false;
 
 	Unity::TScopeTimerWarning Timer( "DecodeNextFrame TOTAL", 1 );
-
-	TFrameMeta FrameMeta;
-	if ( !DecodeNextFrame( FrameMeta, mCurrentPacket, mFrame, mDataOffset ) )
-		return false;
 	
 	//	work out timestamp
 	double FrameRate = av_q2d( mVideoStream->r_frame_rate );
 	//	avoid /zero
 	FrameRate = ofMax(1.0/60.0,1.0/FrameRate);
+	float FrameStep = static_cast<float>(FrameRate) * 1000.f;
 
-	if ( USE_REAL_TIMESTAMP )
+
+	int SkipFrames = 0;
+	//	if we're using fake-counted timestamps then we can determine how many frames we want to skip to keep up
+	#if !defined(USE_REAL_TIMESTAMP)
 	{
-		double TimeBase = av_q2d( mVideoStream->time_base );
-		auto PresentationTimestamp = mFrame->pts;
-		double Timestamp = mFrame->pts * TimeBase;
-		double TimeSecs = Timestamp * FrameRate;
-		double TimeMs = TimeSecs * 1000.f;
-		OutputFrame.mTimestamp = SoyTime( static_cast<uint64>(TimeMs) );
+		//	todo: calc this in reverse instead of looping
+		SoyTime NextFrame = mFakeRunningTimestamp;
+		NextFrame += static_cast<uint64>(FrameStep);
+		while ( NextFrame < MinTimestamp )
+		{
+			NextFrame += static_cast<uint64>(FrameStep);
+			SkipFrames++;
+		}
+		//	cap this
+		SkipFrames = ofMax( SkipFrames, MIN_DECODER_FRAMESKIP );
+		SkipFrames = ofMin( SkipFrames, ofMax(MIN_DECODER_FRAMESKIP,MAX_DECODER_FRAMESKIP) );
+
+		BufferString<1000> Debug;
+		Debug << "Decoder skipping " << SkipFrames;
+		Unity::Debug( Debug.c_str() );
 	}
-	else
+	#endif
+
+	//	if using real video times then we skip packets until we see min PTS (presentation timestamp) in a packet
+	int64_t MinPts = 0;
+	static bool skipbypts = true;
+	if ( skipbypts )
+	{
+		MinPts = MsToPts( MinTimestamp, av_q2d( mVideoStream->time_base ), av_q2d( mVideoStream->r_frame_rate ) );
+		SkipFrames = 0;
+	}
+
+	TFrameMeta FrameMeta;
+	if ( !DecodeNextFrame( FrameMeta, mCurrentPacket, mFrame, mDataOffset, SkipFrames, MinPts ) )
+		return false;
+	
+
+	#if defined(USE_REAL_TIMESTAMP)
+	{
+		auto f_pts = mFrame->pts;
+		auto pts = mFrame->pkt_pts;
+		auto dts = mFrame->pkt_dts;
+
+		OutputFrame.mTimestamp = PtsToMs( pts, av_q2d( mVideoStream->time_base ), av_q2d( mVideoStream->r_frame_rate ) );
+
+	}
+	#else
 	{
 		//uint64 Step = static_cast<uint64>( 1.f / FrameRate );
 		//mFakeRunningTimestamp += Step;
 		//	framerate == 0.04 (which is 1/25fps)
 		//	therefore frame rate is in seconds
 		//	we want timestamp in ms
-		float Step = static_cast<float>(FrameRate) * 1000.f;
-		mFakeRunningTimestamp += static_cast<uint64>(Step);
+		int FramesStepped = 1 + SkipFrames;
+		mFakeRunningTimestamp += static_cast<uint64>( static_cast<float>(FramesStepped) *  FrameStep);
 		OutputFrame.mTimestamp = SoyTime( mFakeRunningTimestamp );
 	}
+	#endif
 	
 	//	checking for out-of-order frames
 	if ( OutputFrame.mTimestamp < mLastDecodedTimestamp )
@@ -713,6 +793,7 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 	
 
 	//	too far behind, skip it
+	//	gr: with pre-frame-skipping this should never occur any more
 	if ( OutputFrame.mTimestamp < MinTimestamp && MinTimestamp.IsValid() && !STORE_PAST_FRAMES )
 	{
 		BufferString<100> Debug;
@@ -777,50 +858,64 @@ void TDecoder_Libav::LogCallback(void *ptr, int level, const char *fmt, va_list 
 //	http://stackoverflow.com/questions/13888915/thread-safety-of-libav-ffmpeg
 int TDecoder_Libav::LockManagerCallback(void** ppMutex,enum AVLockOp op)
 {
+	//	gr: lock type doesn't seem to make any difference
+	//typedef std::recursive_mutex MUTEX_TYPE;
+	typedef std::mutex MUTEX_TYPE;
 	if ( !ppMutex )
 		return -1;
 
-	switch ( op )
+	try
 	{
-		case AV_LOCK_CREATE:
-		{
-			//	gr: might be uninitlised? in which case we ditch this assert
-			assert( *ppMutex == nullptr );
-			ofMutex* m = new ofMutex();
-			*ppMutex = static_cast<void*>(m);
-		}
-		break;
 
-		case AV_LOCK_OBTAIN:
+		switch ( op )
 		{
-			ofMutex* m = static_cast<ofMutex*>(*ppMutex);
-			if ( !m )
-				return -1;	
-			m->lock();
-		}
-		break;
-
-		case AV_LOCK_RELEASE:
-		{
-			ofMutex* m = static_cast<ofMutex*>(*ppMutex);
-			if ( !m )
-				return -1;	
-			m->unlock();
-		}
-		break;
-
-		case AV_LOCK_DESTROY:
-		{
-			ofMutex* m = static_cast<ofMutex*>(*ppMutex);
-			if ( !m )
-				return -1;
-			delete m;
-			*ppMutex = nullptr;
-		}
-		break;
-
-		default:
+			case AV_LOCK_CREATE:
+			{
+				//	gr: might be uninitlised? in which case we ditch this assert
+				assert( *ppMutex == nullptr );
+				auto* m = new MUTEX_TYPE();
+				if ( !m )
+					return -1;
+				*ppMutex = static_cast<void*>(m);
+			}
 			break;
+
+			case AV_LOCK_OBTAIN:
+			{
+				auto* m = static_cast<MUTEX_TYPE*>(*ppMutex);
+				if ( !m )
+					return -1;	
+				m->lock();
+			}
+			break;
+
+			case AV_LOCK_RELEASE:
+			{
+				auto* m = static_cast<MUTEX_TYPE*>(*ppMutex);
+				if ( !m )
+					return -1;	
+				m->unlock();
+			}
+			break;
+
+			case AV_LOCK_DESTROY:
+			{
+				auto* m = static_cast<MUTEX_TYPE*>(*ppMutex);
+				if ( !m )
+					return -1;
+				delete m;
+				*ppMutex = nullptr;
+			}
+			break;
+
+			default:
+				break;
+		}
+	}
+	catch ( ... )
+	{
+		Unity::DebugError("Caught error with lock manager!");
+		return -1;
 	}
 	return 0;
 }

@@ -180,11 +180,11 @@ public:
 	virtual ~TDecoder_Libav();
 	
 	virtual TDecodeInitResult::Type	Init(const TDecodeParams& Params);
-	bool							PeekNextFrame(TFrameMeta& FrameMeta);
-	bool							DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
+	virtual bool					PeekNextFrame(TFrameMeta& FrameMeta);
+	virtual bool					DecodeNextFrame(TFramePixels& OutFrame,SoyTime MinTimestamp,bool& TryAgain);
 	
 private:
-	bool			DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& Packet,std::shared_ptr<AVFrame>& Frame,int& DataOffset);
+	bool			DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& Packet,std::shared_ptr<AVFrame>& Frame,int& DataOffset,int SkipFrames,int64_t MinPts);
 	static void		LogCallback(void *ptr, int level, const char *fmt, va_list vargs);
 	static int		LockManagerCallback(void** ppMutex,enum AVLockOp op);
 
