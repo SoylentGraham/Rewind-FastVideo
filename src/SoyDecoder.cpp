@@ -718,35 +718,37 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 	float FrameStep = static_cast<float>(FrameRate) * 1000.f;
 
 
-	int SkipFrames = 0;
-	//	if we're using fake-counted timestamps then we can determine how many frames we want to skip to keep up
-	#if !defined(USE_REAL_TIMESTAMP)
-	{
-		//	todo: calc this in reverse instead of looping
-		SoyTime NextFrame = mFakeRunningTimestamp;
-		NextFrame += static_cast<uint64>(FrameStep);
-		while ( NextFrame < MinTimestamp )
-		{
-			NextFrame += static_cast<uint64>(FrameStep);
-			SkipFrames++;
-		}
-		//	cap this
-		SkipFrames = ofMax( SkipFrames, MIN_DECODER_FRAMESKIP );
-		SkipFrames = ofMin( SkipFrames, ofMax(MIN_DECODER_FRAMESKIP,MAX_DECODER_FRAMESKIP) );
-
-		BufferString<1000> Debug;
-		Debug << "Decoder skipping " << SkipFrames;
-		Unity::Debug( Debug.c_str() );
-	}
-	#endif
-
 	//	if using real video times then we skip packets until we see min PTS (presentation timestamp) in a packet
 	int64_t MinPts = 0;
-	static bool skipbypts = true;
-	if ( skipbypts )
+	int SkipFrames = 0;
+
+	//	if we're using fake-counted timestamps then we can determine how many frames we want to skip to keep up
+	if ( PREDECODE_FRAME_SKIP )
 	{
-		MinPts = MsToPts( MinTimestamp, av_q2d( mVideoStream->time_base ), av_q2d( mVideoStream->r_frame_rate ) );
-		SkipFrames = 0;
+		#if defined(USE_REAL_TIMESTAMP)
+		{
+			MinPts = MsToPts( MinTimestamp, av_q2d( mVideoStream->time_base ), av_q2d( mVideoStream->r_frame_rate ) );
+			SkipFrames = 0;
+		}
+		#else
+		{
+			//	todo: calc this in reverse instead of looping
+			SoyTime NextFrame = mFakeRunningTimestamp;
+			NextFrame += static_cast<uint64>(FrameStep);
+			while ( NextFrame < MinTimestamp )
+			{
+				NextFrame += static_cast<uint64>(FrameStep);
+				SkipFrames++;
+			}
+			//	cap this
+			SkipFrames = ofMax( SkipFrames, MIN_DECODER_FRAMESKIP );
+			SkipFrames = ofMin( SkipFrames, ofMax(MIN_DECODER_FRAMESKIP,MAX_DECODER_FRAMESKIP) );
+
+			BufferString<1000> Debug;
+			Debug << "Decoder skipping " << SkipFrames;
+			Unity::Debug( Debug.c_str() );
+		}
+		#endif
 	}
 
 	TFrameMeta FrameMeta;
@@ -794,7 +796,7 @@ bool TDecoder_Libav::DecodeNextFrame(TFramePixels& OutputFrame,SoyTime MinTimest
 
 	//	too far behind, skip it
 	//	gr: with pre-frame-skipping this should never occur any more
-	if ( OutputFrame.mTimestamp < MinTimestamp && MinTimestamp.IsValid() && !STORE_PAST_FRAMES )
+	if ( OutputFrame.mTimestamp < MinTimestamp && MinTimestamp.IsValid() && POSTDECODE_FRAME_SKIP )
 	{
 		BufferString<100> Debug;
 		Debug << "Decoded frame " << OutputFrame.mTimestamp << " too far behind " << MinTimestamp << " [skipped]";

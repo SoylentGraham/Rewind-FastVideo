@@ -11,11 +11,13 @@ bool USE_TEST_DECODER = false;
 bool ENABLE_TIMER_DEBUG_LOG = false;		//	shows timer messages to unity
 bool ENABLE_ERROR_LOG = true;			//	big-error debug
 bool ENABLE_FULL_DEBUG_LOG = false;		//	coder-only debug
-bool ENABLE_LAG_DEBUG_LOG = true;		//	decoder lag
+bool ENABLE_LAG_DEBUG_LOG = false;		//	decoder lag
+bool ENABLE_FRAME_DEBUG_LOG = false;		//	output the frame every time we move along
 bool ENABLE_DECODER_DEBUG_LOG = false;		//	libav output
 
 bool SKIP_PAST_FRAMES	= true;
-bool STORE_PAST_FRAMES	= true;
+bool PREDECODE_FRAME_SKIP = true;
+bool POSTDECODE_FRAME_SKIP	= false;	//	frame skip post-decoding. With new frame skip options this shouldnt occur any more
 bool SHOW_POOL_FULL_MESSAGE	=	true;
 
 float REAL_TIME_MODIFIER			= 1.0f;	//	speed up/slow down real life time
@@ -372,6 +374,9 @@ extern "C" void EXPORT_API UnityRenderEvent(int eventID)
 			Unity::GetFastVideo().OnPostRender();
 			break;
 
+		case UnityEvent::SomeOcculusEvent:
+			break;
+
 		default:
 			Unity::DebugError( BufferString<100>() << "Unknown UnityRenderEvent [" << eventID << "]" );
 			break;
@@ -431,6 +436,11 @@ extern "C" EXPORT_API void EnableDebugTimers(bool Enable)
 extern "C" EXPORT_API void EnableDebugLag(bool Enable)
 {
 	ENABLE_LAG_DEBUG_LOG = Enable;
+}
+
+extern "C" EXPORT_API void EnableDebugFrame(bool Enable)
+{
+	ENABLE_FRAME_DEBUG_LOG = Enable;
 }
 
 extern "C" EXPORT_API void EnableDebugError(bool Enable)

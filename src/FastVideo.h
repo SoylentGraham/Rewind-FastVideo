@@ -5,12 +5,13 @@
 #include "UnityDevice.h"
 #include "TFrame.h"
 
-#define USE_REAL_TIMESTAMP				0
+#define USE_REAL_TIMESTAMP		//	else assume every frame is 1sec/FPS
 
 #define DEFAULT_MAX_POOL_SIZE		30
 #define DEFAULT_MAX_FRAME_BUFFERS	(DEFAULT_MAX_POOL_SIZE-1)
 
-#if USE_REAL_TIMESTAMP==1
+//	gr: why is buffer frame count dependent on timestamp decoding??
+#if defined(USE_REAL_TIMESTAMP)
 	#define FORCE_BUFFER_FRAME_COUNT	20	//	hold X frames before popping (must be less than DEFAULT_MAX_FRAME_BUFFERS)
 #else
 	#define FORCE_BUFFER_FRAME_COUNT	0	//	hold X frames before popping (must be less than DEFAULT_MAX_FRAME_BUFFERS)
@@ -33,11 +34,12 @@
 #define BUFFER_DEBUG_LOG
 
 //#define DEBUG_LOG_THREADSAFE
-//#define SINGLETON_THREADSAFE
+#define SINGLETON_THREADSAFE		//	don't think this is needed, but ben was getting crashes when "unrunning" in AllocInstance, and the function gets called from different threads...
 //#define DO_GL_FLUSH						glFlush
 
 extern bool SKIP_PAST_FRAMES;
-extern bool STORE_PAST_FRAMES;
+extern bool PREDECODE_FRAME_SKIP;
+extern bool POSTDECODE_FRAME_SKIP;
 extern bool SHOW_POOL_FULL_MESSAGE;
 
 extern bool USE_TEST_DECODER;
@@ -45,6 +47,7 @@ extern bool ENABLE_TIMER_DEBUG_LOG;
 extern bool ENABLE_ERROR_LOG;
 extern bool ENABLE_FULL_DEBUG_LOG;
 extern bool ENABLE_LAG_DEBUG_LOG;
+extern bool ENABLE_FRAME_DEBUG_LOG;
 extern bool ENABLE_DECODER_DEBUG_LOG;
 extern float REAL_TIME_MODIFIER;	//	speed up/slow down real life time
 
@@ -67,6 +70,7 @@ class TFastTexture;
 enum UnityEvent
 {
     OnPostRender = 0,
+	SomeOcculusEvent = 1,
 };
 
 enum FastVideoError
@@ -96,6 +100,8 @@ namespace Unity
 	inline void	DebugTimer(const char* String)				{ ENABLE_TIMER_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 	inline void	DebugDecodeLag(const std::string& String)	{ ENABLE_LAG_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 	inline void	DebugDecodeLag(const char* String)			{ ENABLE_LAG_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+	inline void	DebugFrame(const std::string& String)		{ ENABLE_FRAME_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+	inline void	DebugFrame(const char* String)				{ ENABLE_FRAME_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 	inline void	DebugDecoder(const std::string& String)		{ ENABLE_DECODER_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 	inline void	DebugDecoder(const char* String)			{ ENABLE_DECODER_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 	inline void	Debug(const std::string& String)			{ ENABLE_FULL_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }

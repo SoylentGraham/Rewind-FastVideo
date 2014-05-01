@@ -538,7 +538,8 @@ void TFastTexture::OnTargetTextureChanged()
 	if ( mState == TFastVideoState::FirstFrame )
 	{
 		mState = TFastVideoState::Playing;
-		SetFrameTime( mTargetTextureFrame );
+		//	gr: removing this means the frame doesn't get accidentally overwritten AFTER we've restarted... and doesn't seem to be a problem with sync?
+		//SetFrameTime( mTargetTextureFrame );
 	}
 }
 
@@ -577,7 +578,7 @@ void TFastTexture::UpdateFrameTime()
 
 	BufferString<100> Debug;
 	Debug << "Frame is: " << mFrame.Get() << "ms";
-	Unity::DebugError( Debug );
+	Unity::DebugFrame( Debug );
 
 	//ofMutex::ScopedLock lockdecoderthread( mDecoderThread );
 	if ( mDecoderThread.Get() )
