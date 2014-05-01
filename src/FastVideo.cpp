@@ -15,7 +15,8 @@ bool ENABLE_LAG_DEBUG_LOG = false;		//	decoder lag
 bool ENABLE_FRAME_DEBUG_LOG = false;		//	output the frame every time we move along
 bool ENABLE_DECODER_DEBUG_LOG = false;		//	libav output
 
-bool SKIP_PAST_FRAMES	= true;
+bool SKIP_PAST_FRAMES	= false;
+int SKIP_PAST_FRAMES_MAX = 10;	//	force app to NOT skip too much
 bool PREDECODE_FRAME_SKIP = true;
 bool POSTDECODE_FRAME_SKIP	= false;	//	frame skip post-decoding. With new frame skip options this shouldnt occur any more
 bool SHOW_POOL_FULL_MESSAGE	=	true;
@@ -302,8 +303,6 @@ void TFastVideo::FlushDebugLogBuffer()
 
 void TFastVideo::DebugLog(const char* String)
 {
-#if defined(ENABLE_DEBUG_LOG)
-
 #if defined(DEBUG_LOG_THREADSAFE)
 	ofMutex::ScopedLock lock( mDebugFuncLock );
 #endif
@@ -312,8 +311,6 @@ void TFastVideo::DebugLog(const char* String)
 	{
 		(*mDebugFunc)( String );
 	}
-
-#endif
 }
 
 

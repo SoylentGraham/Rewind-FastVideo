@@ -24,10 +24,11 @@
 #define HARDWARE_INIT_TEXTURE_COLOUR		TColour(0,255,255,255)
 
 #define ALWAYS_COPY_DYNAMIC_TO_TARGET	false	//	gr: I think not changing the target causes some double buffer mess
-#define DYNAMIC_SKIP_OOO_FRAMES			true
 #define DECODER_SKIP_OOO_FRAMES			false
 
-#define ENABLE_DEBUG_LOG
+#if defined(_DEBUG)
+#define ENABLE_DEBUG	//	removing this turns off ALL debug printing and timers
+#endif
 
 //	buffer output log messages. OSX crashes randomly when we use the debug-console output on other threads (not sure if its just cos the c# funcs aren't thread safe?)
 //	other platforms PROBABLY need it if OSX does.
@@ -38,6 +39,7 @@
 //#define DO_GL_FLUSH						glFlush
 
 extern bool SKIP_PAST_FRAMES;
+extern int SKIP_PAST_FRAMES_MAX;
 extern bool PREDECODE_FRAME_SKIP;
 extern bool POSTDECODE_FRAME_SKIP;
 extern bool SHOW_POOL_FULL_MESSAGE;
@@ -93,7 +95,7 @@ namespace Unity
 	void		ConsoleLog(const char* str);
 	inline void	ConsoleLog(const std::string& String)		{ ConsoleLog(String.c_str()); }
 
-
+#if defined(ENABLE_DEBUG)
 	inline void	DebugError(const std::string& String)		{ ENABLE_ERROR_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 	inline void	DebugError(const char* String)				{ ENABLE_ERROR_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 	inline void	DebugTimer(const std::string& String)		{ ENABLE_TIMER_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
@@ -106,8 +108,18 @@ namespace Unity
 	inline void	DebugDecoder(const char* String)			{ ENABLE_DECODER_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 	inline void	Debug(const std::string& String)			{ ENABLE_FULL_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
 	inline void	Debug(const char* String)					{ ENABLE_FULL_DEBUG_LOG ? ConsoleLog(String) : ofLogNoticeWrapper(String); }
+#else
 
+	inline void Nothing()	{}
+	#define DebugError(String)		Nothing()
+	#define DebugTimer(String)		Nothing()
+	#define DebugDecodeLag(String)	Nothing()
+	#define DebugFrame(String)		Nothing()
+	#define DebugDecoder(String)	Nothing()
+	#define Debug(String)			Nothing()
+#endif
 
+#if defined(ENABLE_DEBUG)
 	class TScopeTimerWarning : public ofScopeTimerWarning
 	{
 	public:
@@ -116,6 +128,17 @@ namespace Unity
 		{
 		};
 	};
+#else
+	class TScopeTimerWarning
+	{
+	public:
+		TScopeTimerWarning(const char* Name,uint64 WarningTimeMs,bool AutoStart=true)
+		{
+		};
+		void Start()	{}
+		void Stop()		{}
+	};
+#endif
 	
 	
 };

@@ -333,7 +333,7 @@ TFramePixels* TFrameBuffer::PopFrame(SoyTime Timestamp)
 	}
 
 	//	skipping some frames
-	int SkipCount = PopFrameIndex;
+	int SkipCount = ofMin( PopFrameIndex, SKIP_PAST_FRAMES_MAX );
 	if ( SkipCount > 0 && SKIP_PAST_FRAMES )
 	{
 		BufferString<100> Debug;
@@ -595,8 +595,13 @@ bool TDecoder_Libav::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacke
 
 	Unity::TScopeTimerWarning DecodeTimer( "avcodec_decode_video2", 1, false );
 
+	//	make list of frames (pts) we skipped
+	Array<int64_t> _SkippedFrames;
+	auto SkippedFrames = GetSortArray( _SkippedFrames );
+
 	//	keep processing until a frame is loaded
 	int isFrameAvailable = false;
+	int FoundFirstPacket = false;
 	while ( !isFrameAvailable )
 	{
 		bool SkippingThisFrame = (SkipFrames>0);
@@ -615,11 +620,16 @@ bool TDecoder_Libav::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacke
 				if ( CurrentPacket.packet.stream_index != mVideoStream->index )
 					continue;
 
+				auto PacketPts = CurrentPacket.packet.pts;
 				//	looking for min pts
-				if ( MinPts != 0 && CurrentPacket.packet.pts < MinPts )
+				if ( MinPts != 0 && PacketPts < MinPts && !FoundFirstPacket )
+				{
+					SkippedFrames.PushUnique( PacketPts );
 					continue;
+				}
 
 				//	found our packet to decode
+				FoundFirstPacket = true;
 				break;
 			}
 		}
@@ -651,6 +661,13 @@ bool TDecoder_Libav::DecodeNextFrame(TFrameMeta& FrameMeta,TPacket& CurrentPacke
 			SkipFrames--;
 			continue;
 		}
+
+		if ( !SkippedFrames.IsEmpty() )
+		{
+			BufferString<100> Debug;
+			Debug << "PreDecoder skipped " << SkippedFrames.GetSize();
+			Unity::Debug( Debug.c_str() );
+		}
 		return true;
 	}
 
@@ -680,10 +697,10 @@ bool TDecoder_Libav::PeekNextFrame(TFrameMeta& FrameMeta)
 
 int64 MsToPts(SoyTime Time,double TimeBase,double FrameRate)
 {
-	double TimeMs = Time.GetTime();
+	double TimeMs = static_cast<double>( Time.GetTime() );
 	double TimeSecs = TimeMs / 1000.0;
 	double Timestamp = TimeSecs / TimeBase;
-	return Timestamp;
+	return static_cast<int64>(Timestamp);
 }
 
 SoyTime PtsToMs(int64 Pts,double TimeBase,double FrameRate)
