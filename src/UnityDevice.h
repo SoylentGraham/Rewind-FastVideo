@@ -6,7 +6,7 @@
 
 #if defined(TARGET_WINDOWS)
 	#define ENABLE_DX11
-	#define ENABLE_OPENGL
+	//#define ENABLE_OPENGL
 #elif defined(TARGET_OSX)
 	#define ENABLE_OPENGL
 #endif
