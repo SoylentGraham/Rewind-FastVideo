@@ -323,7 +323,7 @@ bool TFastTexture::SetVideo(const std::wstring& Filename)
 	return true;
 }
 
-void TFastTexture::OnDecoderInitFailed(FastVideoError Error)
+void TFastTexture::OnDecoderInitFailed(FastVideoEvent Error)
 {
 #if defined(ENABLE_FAILED_DECODER_INIT_FRAME)
 	//	push a red "BAD" frame
@@ -346,7 +346,7 @@ void TFastTexture::OnDecoderInitFailed(FastVideoError Error)
 #endif
 
 	//	report error
-	Unity::OnError( *this, Error );
+	Unity::OnEvent( *this, Error );
 }
 
 bool TFastTexture::UpdateFrameTexture(Unity::TTexture Texture,SoyTime& FrameCopied)
@@ -540,6 +540,7 @@ void TFastTexture::OnTargetTextureChanged()
 		mState = TFastVideoState::Playing;
 		//	gr: removing this means the frame doesn't get accidentally overwritten AFTER we've restarted... and doesn't seem to be a problem with sync?
 		//SetFrameTime( mTargetTextureFrame );
+		Unity::OnEvent( *this, FastVideoEvent::Started );
 	}
 }
 

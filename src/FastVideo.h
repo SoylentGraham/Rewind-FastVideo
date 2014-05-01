@@ -75,12 +75,13 @@ enum UnityEvent
 	SomeOcculusEvent = 1,
 };
 
-enum FastVideoError
+enum FastVideoEvent
 {
-	UknownError			= 0,
-	DecoderError		= 1,
-	CodecError			= 2,
-	FileNotFound		= 3,
+	Started				= 0,
+	UknownError			= 1,
+	DecoderError		= 2,
+	CodecError			= 3,
+	FileNotFound		= 4,
 };
 
 
@@ -88,9 +89,9 @@ namespace Unity
 {
 	typedef unsigned long long	ulong;
 	typedef void (*TDebugLogFunc)(const char*);
-	typedef void (*TOnErrorFunc)(ulong,ulong);
+	typedef void (*TOnEventFunc)(ulong,ulong);
 
-	void		OnError(TFastTexture& Instance,FastVideoError Error);
+	void		OnEvent(TFastTexture& Instance,FastVideoEvent Event);
 
 	void		ConsoleLog(const char* str);
 	inline void	ConsoleLog(const std::string& String)		{ ConsoleLog(String.c_str()); }
@@ -161,7 +162,7 @@ extern "C" EXPORT_API void			EnableDebugFull(bool Enable);
 //	http://www.gamedev.net/page/resources/_/technical/game-programming/c-plugin-debug-log-with-unity-r3349
 //	gr: call this in unity to tell us where to DebugLog() to
 extern "C" EXPORT_API void			SetDebugLogFunction(Unity::TDebugLogFunc FunctionPtr);
-extern "C" EXPORT_API void			SetOnErrorFunction(Unity::TOnErrorFunc FunctionPtr);
+extern "C" EXPORT_API void			SetOnEventFunction(Unity::TOnEventFunc FunctionPtr);
 
 // If exported by a plugin, this function will be called for GL.IssuePluginEvent script calls.
 // The function will be called on a rendering thread; note that when multithreaded rendering is used,
@@ -216,7 +217,7 @@ private:
 	TFramePool					mFramePool;
 	
 public:
-	Unity::TOnErrorFunc			mOnErrorFunc;
+	Unity::TOnEventFunc			mOnEventFunc;
 #if defined(DEBUG_LOG_THREADSAFE)
 	ofMutex						mDebugFuncLock;
 #endif

@@ -64,7 +64,7 @@ TFastVideo& Unity::GetFastVideo()
 
 TFastVideo::TFastVideo() :
 	mDebugFunc			( nullptr ),
-	mOnErrorFunc		( nullptr ),
+	mOnEventFunc		( nullptr ),
 	mFramePool			( DEFAULT_MAX_POOL_SIZE ),
 	mNextInstanceRef	( "FastTxture" )
 {
@@ -315,23 +315,23 @@ void TFastVideo::DebugLog(const char* String)
 
 
 
-extern "C" void EXPORT_API SetOnErrorFunction(Unity::TOnErrorFunc pFunc)
+extern "C" void EXPORT_API SetOnEventFunction(Unity::TOnEventFunc pFunc)
 {
 	auto& FastVideo = Unity::GetFastVideo();
 	
-	FastVideo.mOnErrorFunc = pFunc;
+	FastVideo.mOnEventFunc = pFunc;
 }
 
 // Prints a string
-void Unity::OnError(TFastTexture& Instance,FastVideoError Error)
+void Unity::OnEvent(TFastTexture& Instance,FastVideoEvent Event)
 {
 	auto& FastVideo = Unity::GetFastVideo();
 
-	if ( FastVideo.mOnErrorFunc )
+	if ( FastVideo.mOnEventFunc )
 	{
 		ulong InstanceId = Instance.GetRef().GetInt64();
-		ulong ErrorId = static_cast<ulong>( Error );
-		(*FastVideo.mOnErrorFunc)( InstanceId, ErrorId );
+		ulong EventId = static_cast<ulong>( Event );
+		(*FastVideo.mOnEventFunc)( InstanceId, EventId );
 	}
 }
 

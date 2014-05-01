@@ -85,7 +85,7 @@ private:
 	void				WaitForAllDeadDecoderThreads();
 	bool				WaitForLastDeadDecoderThread();
 	void				DeleteUploadThread();
-	void				OnDecoderInitFailed(FastVideoError Error);
+	void				OnDecoderInitFailed(FastVideoEvent Error);
   
     TUnityDevice&       GetDevice();
 

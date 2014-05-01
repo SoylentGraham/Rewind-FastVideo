@@ -138,7 +138,7 @@ namespace TDecodeState
 		FinishedDecoding,
 	};
 
-	FastVideoError	GetFastVideoError(Type State);
+	FastVideoEvent	GetFastVideoError(Type State);
 };
 
 namespace TDecodeInitResult
@@ -151,7 +151,7 @@ namespace TDecodeInitResult
 		CodecError,
 	};
 
-	FastVideoError	GetFastVideoError(Type Result);
+	FastVideoEvent	GetFastVideoError(Type Result);
 };
 
 class TDecoder

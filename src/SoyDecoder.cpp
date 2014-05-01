@@ -6,35 +6,35 @@
 
 
 
-FastVideoError TDecodeInitResult::GetFastVideoError(TDecodeInitResult::Type Result)
+FastVideoEvent TDecodeInitResult::GetFastVideoError(TDecodeInitResult::Type Result)
 {
 	switch ( Result )
 	{
-	case TDecodeInitResult::UnknownError:	return FastVideoError::DecoderError;
-	case TDecodeInitResult::FileNotFound:	return FastVideoError::FileNotFound;
-	case TDecodeInitResult::CodecError:		return FastVideoError::CodecError;
+	case TDecodeInitResult::UnknownError:	return FastVideoEvent::DecoderError;
+	case TDecodeInitResult::FileNotFound:	return FastVideoEvent::FileNotFound;
+	case TDecodeInitResult::CodecError:		return FastVideoEvent::CodecError;
 
 	case TDecodeInitResult::Success:	
 	default:
 		//	not an error!
 		assert( false );
-		return FastVideoError::UknownError;
+		return FastVideoEvent::UknownError;
 	}
 }
 
 
-FastVideoError TDecodeState::GetFastVideoError(TDecodeState::Type State)
+FastVideoEvent TDecodeState::GetFastVideoError(TDecodeState::Type State)
 {
 	switch ( State )
 	{
-	case TDecodeState::FailedInit_Unknown:		return FastVideoError::DecoderError;
-	case TDecodeState::FailedInit_FileNotFound:	return FastVideoError::FileNotFound;
-	case TDecodeState::FailedInit_CodecError:	return FastVideoError::CodecError;
+	case TDecodeState::FailedInit_Unknown:		return FastVideoEvent::DecoderError;
+	case TDecodeState::FailedInit_FileNotFound:	return FastVideoEvent::FileNotFound;
+	case TDecodeState::FailedInit_CodecError:	return FastVideoEvent::CodecError;
 
 	default:
 		//	not an error!
 		assert( false );
-		return FastVideoError::UknownError;
+		return FastVideoEvent::UknownError;
 	}
 }
 

@@ -9,27 +9,34 @@ enum UnityEvent
     OnPostRender = 0,
 };
 
-enum FastVideoError
+enum FastVideoEvent
 {
-	UknownError			= 0,
-	DecoderError		= 1,
-	CodecError			= 2,
-	FileNotFound		= 3,
+    Started = 0,
+    UknownError = 1,
+    DecoderError = 2,
+	CodecError			= 3,
+	FileNotFound		= 4,
 }
 
 //	class that interfaces with FastVideo
 public class FastVideo : MonoBehaviour
 {
+    public float SpeedScale = 1.0f;
+
 	[DllImport ("FastVideo")]	private static extern ulong	AllocInstance();
 	[DllImport ("FastVideo")]	private static extern bool	FreeInstance(ulong Instance);
 	[DllImport ("FastVideo")]	private static extern void	SetDebugLogFunction(System.IntPtr FunctionPtr);
-	[DllImport ("FastVideo")]	private static extern void	SetOnErrorFunction(System.IntPtr FunctionPtr);
-	[DllImport ("FastVideo")]	private static extern bool	SetTexture(ulong Instance,System.IntPtr Texture);
+    [DllImport("FastVideo")]
+    private static extern void SetOnEventFunction(System.IntPtr FunctionPtr);
+    [DllImport("FastVideo")]
+    private static extern bool SetTexture(ulong Instance, System.IntPtr Texture);
 	[DllImport ("FastVideo")]	private static extern bool	SetVideo(ulong Instance,char[] Filename, int Length);
 	[DllImport ("FastVideo")]	private static extern bool	Pause(ulong Instance);
 	[DllImport ("FastVideo")]	private static extern bool	Resume(ulong Instance);
 	[DllImport ("FastVideo")]	private static extern bool	SetLooping(ulong Instance,bool EnableLooping);
-	[DllImport ("FastVideo")]	public static extern void	EnableTestDecoder(bool Enable);
+    [DllImport ("FastVideo")]   public static extern bool SetSpeedScale(float SpeedScale);
+    [DllImport("FastVideo")]    public static extern bool SetSingleThreadUpload(bool Enable);
+    [DllImport ("FastVideo")]   public static extern void EnableTestDecoder(bool Enable);
 	[DllImport ("FastVideo")]	public static extern void	EnableDebugTimers(bool Enable);
 	[DllImport ("FastVideo")]	public static extern void	EnableDebugLag(bool Enable);
 	[DllImport ("FastVideo")]	public static extern void	EnableDebugError(bool Enable);
@@ -42,8 +49,8 @@ public class FastVideo : MonoBehaviour
 	static private DebugLogDelegate	gDebugLogDelegate;
 
 	[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-	private delegate void			OnErrorDelegate(ulong InstanceId,ulong ErrorId);
-	static private OnErrorDelegate	gOnErrorDelegate;
+	private delegate void			OnEventDelegate(ulong InstanceId,ulong EventId);
+	static private OnEventDelegate	gOnEventDelegate;
 	
 	static void	InitCallbacks()
 	{
@@ -59,11 +66,11 @@ public class FastVideo : MonoBehaviour
 		}
 
 		{
-			gOnErrorDelegate = new OnErrorDelegate( OnErrorCallBack );
+			gOnEventDelegate = new OnEventDelegate( OnEventCallBack );
 			//	setup debug callback
 			// Convert callback_delegate into a function pointer that can be used in unmanaged code.
-			System.IntPtr intptr_delegate = Marshal.GetFunctionPointerForDelegate( gOnErrorDelegate );
-			SetOnErrorFunction( intptr_delegate );
+			System.IntPtr intptr_delegate = Marshal.GetFunctionPointerForDelegate( gOnEventDelegate );
+			SetOnEventFunction( intptr_delegate );
 		}
 
 		gCallbacksInitialised = true;
@@ -74,9 +81,9 @@ public class FastVideo : MonoBehaviour
 	    Debug.Log("FastVideo: " + str);
 	}
 	
-	static void OnErrorCallBack(ulong InstanceId,ulong ErrorId)
+	static void OnEventCallBack(ulong InstanceId,ulong EventId)
 	{
-	    Debug.Log("ERROR CALLBACK: " + ErrorId);
+        Debug.Log("EVENT CALLBACK: " + EventId);
 	}
 	
 
@@ -128,7 +135,9 @@ public class FastVideo : MonoBehaviour
 	{
 		
 		//	Create a texture to render to
-		Texture2D tex = new Texture2D(4096,2048,TextureFormat.ARGB32,false);
+        Texture2D tex = new Texture2D(2048, 1024, TextureFormat.ARGB32, false);
+       
+        tex = new Texture2D(1024, 512, TextureFormat.ARGB32, false);
 		// Set point filtering just so we can see the pixels clearly
 		tex.filterMode = FilterMode.Point;
 		// Call Apply() so it's actually uploaded to the GPU
@@ -145,8 +154,8 @@ public class FastVideo : MonoBehaviour
         //System.String Filename = "D:\\bike 4096-2048.mov";
         //System.String Filename = "D:\\bike 4000-2000.mov";
 		//SetVideo( Filename );
-		
-		
+
+        EnableDebugLag(true);
 		
 		
 		
@@ -171,7 +180,10 @@ public class FastVideo : MonoBehaviour
 			
 			// Set time for the plugin
 			//SetTimeFromUnity (Time.timeSinceLevelLoad);
-			
+
+            //  update speed every frame so we can use reflection
+            SetSpeedScale(SpeedScale);
+
 			// Issue a plugin event with arbitrary integer identifier.
 			// The plugin can distinguish between different
 			// things it needs to do based on this ID.
@@ -219,6 +231,8 @@ public class UseRenderingPlugin : FastVideo {
            // Filename = "D:\\bike rgba.mpg";
            	Filename = "g:\\bike.h264";
             Filename = "rtsp://video.frostburg.edu:1935/ccit/ccit2.stream";
+            Filename = "x:\\BanksBrain_4k.mp4";
+            //Filename = "x:\\BanksBrain_2k.mp4";
             //Filename = "d:\\iel_sgi.mpg";
 			//Filename = "fdhsjfhdjkghfdk";
 
